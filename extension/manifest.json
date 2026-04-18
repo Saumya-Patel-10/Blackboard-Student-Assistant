@@ -1,0 +1,64 @@
+{
+  "manifest_version": 3,
+  "name": "Blackboard Student Assistant",
+  "version": "1.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzKdiqqceK12lqeUOPtcdtbrDkhrUKvHrqpVTyFN1erGF2iWJd5NBcwBASuSK82C8zRb4VfsHO568GkPBPOS2aKNRUQhiBemPjZiSh07hUTHJdIUIsFZ/r13xwx8nrbpkWS/FQJZ5iMHby3hIs6gG+rs9o6lHjlTMqB/BSudKkh9r+kg8lhuz0txsFHqsDUg9JdFWH9uqjRdlYbGQ0p4sNXQH2Kjo7xgc/7sTdbuv2aYtor9OrgWZRKeskdjNWCL4dixAO6VD6YSYMrKBvcCukLL4/7VZDE46H/KXKwVsFbQvTQsFpaGSLpHVUztho/EX1owzbavHhlI2hY1ejMupNQIDAQAB",
+  "description": "Scans your college Blackboard for deadlines, grades, and schedules. Provides deadline notifications, grade calculations, Google Calendar integration, and personalized study plans.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications",
+    "identity",
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://*.blackboard.com/*",
+    "https://elearning.utdallas.edu/*",
+    "https://*.instructure.com/*",
+    "https://www.googleapis.com/*",
+    "https://accounts.google.com/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "oauth2": {
+    "client_id": "402746486610-2ljvcdl6k76s0q4339vm00fbci4j9s61.apps.googleusercontent.com",
+    "scopes": [
+        "https://www.googleapis.com/auth/calendar.events"
+    ]
+  },
+  "background": {
+    "service_worker": "js/background.js"
+  },
+  "action": {
+    "default_popup": "pages/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.blackboard.com/*",
+        "https://elearning.utdallas.edu/*",
+        "https://*.instructure.com/*"
+      ],
+      "js": ["js/content-script.js"],
+      "css": ["css/content-overlay.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "pages/options.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["vendor/pdf.worker.min.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
