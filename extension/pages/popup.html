@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="../css/popup.css">
+  <title>Blackboard Student Assistant</title>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="header-logo">🎓</div>
+      <h1>Student Assistant</h1>
+    </div>
+    <div class="header-actions">
+      <button class="header-btn" id="btn-refresh" data-tooltip="Scan Blackboard">🔄</button>
+      <button class="header-btn" id="btn-settings" data-tooltip="Settings">⚙️</button>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <div class="status-bar" id="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Not connected to Blackboard</span>
+  </div>
+
+  <!-- One-time target grade prompt (saved in settings) -->
+  <div id="target-grade-banner" class="hidden" style="margin: 0 16px 12px; padding: 12px; background: var(--bg-card, #1e293b); border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px;">
+    <div style="font-weight: 600; margin-bottom: 8px;">What course grade are you aiming for?</div>
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+      <input type="number" id="banner-target-grade" min="0" max="100" placeholder="e.g. 90" style="width: 88px; padding: 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px;">
+      <span style="color: var(--text-muted); font-size: 12px;">% in the calculator</span>
+      <button type="button" class="btn btn-primary btn-sm" id="btn-save-target-grade">Save</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-dismiss-target-banner">Later</button>
+    </div>
+  </div>
+
+  <!-- Onboarding View (shown when no data) -->
+  <div id="view-onboarding" class="onboarding">
+    <h2>Welcome! 👋</h2>
+    <p>Your personal Blackboard assistant for deadlines, grades, and study planning.</p>
+    <div class="onboarding-steps">
+      <div class="onboarding-step">
+        <div class="step-number">1</div>
+        <div class="step-text">
+          <strong>Navigate to Blackboard</strong>
+          Open your college's Blackboard site (e.g., elearning.utdallas.edu)
+        </div>
+      </div>
+      <div class="onboarding-step">
+        <div class="step-number">2</div>
+        <div class="step-text">
+          <strong>Auto-Scan Courses</strong>
+          We'll detect your courses, assignments, and deadlines automatically
+        </div>
+      </div>
+      <div class="onboarding-step">
+        <div class="step-number">3</div>
+        <div class="step-text">
+          <strong>Upload Syllabi</strong>
+          Add your course syllabi for exam dates, office hours, and grading breakdowns
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-full" id="btn-open-blackboard">Open Blackboard</button>
+  </div>
+
+  <!-- Main Dashboard (shown when data exists) -->
+  <div id="view-dashboard" class="hidden">
+
+    <!-- Upcoming Deadlines -->
+    <div class="section">
+      <div class="section-title-row">
+        <div class="section-title">📅 Upcoming Deadlines</div>
+        <button type="button" class="text-link-btn" id="btn-manage-deadlines" title="Edit dates or rescan Blackboard">Update schedule</button>
+      </div>
+      <p class="section-hint">If Blackboard changes, use Update schedule to edit dates manually or rescan the site.</p>
+      <div id="deadlines-list">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="section">
+      <div class="section-title">⚡ Quick Actions</div>
+      <div class="actions-grid">
+        <button class="action-btn" id="btn-grades">
+          <div class="action-icon grades">📊</div>
+          <span class="action-label">Calculate Grades</span>
+        </button>
+        <button class="action-btn" id="btn-calendar">
+          <div class="action-icon calendar">📆</div>
+          <span class="action-label">Sync Calendar</span>
+        </button>
+        <button class="action-btn" id="btn-plan">
+          <div class="action-icon plan">📋</div>
+          <span class="action-label">Study Plan</span>
+        </button>
+        <button class="action-btn" id="btn-syllabus">
+          <div class="action-icon syllabus">📄</div>
+          <span class="action-label">Upload Syllabus</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- My Courses -->
+    <div class="section">
+      <div class="section-title">📚 My Courses</div>
+      <div id="courses-list">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== PANELS / MODALS ========== -->
+
+  <!-- Grade Calculator Panel -->
+  <div class="panel-overlay" id="overlay-grades"></div>
+  <div class="panel" id="panel-grades">
+    <div class="panel-header">
+      <h2>📊 Grade Calculator</h2>
+      <button class="panel-close" data-close="grades">✕</button>
+    </div>
+    <div class="panel-body">
+      <div class="goal-input-group">
+        <select id="grade-course-select">
+          <option value="">Select Course</option>
+        </select>
+      </div>
+      <button type="button" class="btn btn-secondary btn-full" id="btn-fill-grades-bb" style="margin-top: 10px;">Fill from Blackboard grades (AI)</button>
+      <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--text-muted); cursor: pointer;">
+        <input type="checkbox" id="opt-ai-screen-capture" checked>
+        Capture current tab for the API (recommended — aligns grades with your screen)
+      </label>
+      <p style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">Sends grade lines to Google AI in the format <code style="font-size: 10px;">HW1 - 9/10 HW2 - 10/10</code> (averaged per category). Add your API key in Settings.</p>
+      <div id="grade-categories">
+        <!-- Populated dynamically -->
+      </div>
+      <div class="grade-result hidden" id="grade-result">
+        <div class="big-grade" id="calculated-grade">--</div>
+        <div class="letter-grade" id="letter-grade">Select a course to begin</div>
+      </div>
+      <div style="margin-top: 12px;">
+        <div class="section-title">🎯 What Grade Do You Need?</div>
+        <div class="goal-input-group">
+          <input type="number" id="target-grade" placeholder="Target %" min="0" max="100">
+          <button class="btn btn-primary btn-sm" id="btn-calc-needed">Calculate</button>
+        </div>
+        <div id="needed-grade-result" class="hidden" style="font-size: 13px; color: var(--text-muted); margin-top: 8px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Calendar Sync Panel -->
+  <div class="panel-overlay" id="overlay-calendar"></div>
+  <div class="panel" id="panel-calendar">
+    <div class="panel-header">
+      <h2>📆 Google Calendar Sync</h2>
+      <button class="panel-close" data-close="calendar">✕</button>
+    </div>
+    <div class="panel-body">
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+        Review and edit dates below, then sync. Deadlines come from Blackboard scans; exams can come from your syllabus or manual entry.
+      </p>
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="cal-deadlines">Deadlines</button>
+        <button class="tab-btn" data-tab="cal-exams">Exams</button>
+        <button class="tab-btn" data-tab="cal-classes">Classes</button>
+      </div>
+      <div id="calendar-events-list">
+        <!-- Populated by JS -->
+      </div>
+      <div style="margin-top: 16px; display: flex; gap: 8px;">
+        <button class="btn btn-primary btn-full" id="btn-sync-selected">Sync Selected to Calendar</button>
+      </div>
+      <div id="calendar-status" class="hidden" style="text-align: center; margin-top: 12px; font-size: 13px;"></div>
+    </div>
+  </div>
+
+  <!-- Study Plan Panel -->
+  <div class="panel-overlay" id="overlay-plan"></div>
+  <div class="panel" id="panel-plan">
+    <div class="panel-header">
+      <h2>📋 Study Plan</h2>
+      <button class="panel-close" data-close="plan">✕</button>
+    </div>
+    <div class="panel-body">
+      <div class="section-title">🎯 Set Your Goals</div>
+      <div id="course-goals">
+        <!-- Populated by JS -->
+      </div>
+      <button class="btn btn-primary btn-full" id="btn-generate-plan" style="margin: 16px 0;">Generate Study Plan</button>
+      <div id="study-plan-output">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Syllabus Upload Panel -->
+  <div class="panel-overlay" id="overlay-syllabus"></div>
+  <div class="panel" id="panel-syllabus">
+    <div class="panel-header">
+      <h2>📄 Upload Syllabus</h2>
+      <button class="panel-close" data-close="syllabus">✕</button>
+    </div>
+    <div class="panel-body">
+      <div class="goal-input-group">
+        <select id="syllabus-course-select">
+          <option value="">Select Course</option>
+        </select>
+      </div>
+      <div class="upload-zone" id="upload-zone">
+        <div class="upload-icon">📎</div>
+        <div class="upload-text">
+          <strong>Click to upload</strong> or drag & drop<br>
+          PDF, DOCX, or TXT files
+        </div>
+        <input type="file" id="syllabus-file" accept=".pdf,.docx,.txt,.doc,.png,.jpg,.jpeg,.webp,.gif" style="display: none;">
+      </div>
+      <p style="font-size: 12px; color: var(--text-muted); margin-top: 10px;">
+        <strong>Local parsing:</strong> weights and dates are read from text you paste or extract from files — no API required. Optional Google AI is in Settings for difficult PDFs or image-only pages.
+      </p>
+      <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+        <strong>Grading table as image:</strong> if PDF text is wrong, paste a screenshot — or enable AI syllabus parsing in Settings.
+      </p>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-syllabus-paste-image">Paste grading screenshot</button>
+        <input type="file" id="syllabus-image-file" accept="image/*" style="display: none;">
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-syllabus-pick-image">Choose image</button>
+      </div>
+      <div id="syllabus-image-wrap" class="hidden" style="margin-top: 10px;">
+        <img id="syllabus-grading-preview" alt="Grading scale preview" style="max-width: 100%; border-radius: var(--radius); border: 1px solid var(--border);">
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-syllabus-clear-image" style="margin-top: 8px;">Remove image</button>
+      </div>
+      <div style="text-align: center; margin: 12px 0; color: var(--text-muted); font-size: 12px;">— or —</div>
+      <textarea id="syllabus-text" placeholder="Paste your syllabus text here..." style="width: 100%; min-height: 120px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); padding: 12px; font-size: 13px; font-family: inherit; resize: vertical;"></textarea>
+      <div id="syllabus-file-status" class="syllabus-status hidden"></div>
+      <button class="btn btn-primary btn-full" id="btn-parse-syllabus" style="margin-top: 12px;">Parse Syllabus</button>
+      <div id="syllabus-results" class="hidden" style="margin-top: 16px;">
+        <!-- Parsed results shown here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Manage deadlines / rescan -->
+  <div class="panel-overlay" id="overlay-manage-deadlines"></div>
+  <div class="panel" id="panel-manage-deadlines">
+    <div class="panel-header">
+      <h2>📅 Update schedule</h2>
+      <button class="panel-close" data-close="manage-deadlines">✕</button>
+    </div>
+    <div class="panel-body">
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+        After a scan, adjust any due date here before syncing to Google Calendar. Rescan pulls updates from the Blackboard tab you have open.
+      </p>
+      <div class="manage-deadlines-actions">
+        <button type="button" class="btn btn-secondary btn-full" id="btn-rescan-blackboard">Rescan Blackboard</button>
+      </div>
+      <div id="manage-deadlines-status" class="syllabus-status hidden" style="margin-top: 8px;"></div>
+      <div class="section-title" style="margin-top: 16px;">Deadlines from Blackboard</div>
+      <div id="manage-deadlines-list"></div>
+      <div class="add-deadline-box" style="margin-top: 16px;">
+        <div class="section-title" style="font-size: 13px;">Add date manually</div>
+        <select id="manual-dl-course" style="width: 100%; margin-top: 8px; padding: 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); font-size: 13px;">
+          <option value="">Select course</option>
+        </select>
+        <select id="manual-dl-type" style="width: 100%; margin-top: 8px; padding: 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); font-size: 13px;">
+          <option value="assignment">Assignment / deadline</option>
+          <option value="exam">Exam</option>
+        </select>
+        <input type="text" id="manual-dl-title" placeholder="Title (e.g. Exam 2 or Problem Set 5)" style="width: 100%; margin-top: 8px; padding: 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); font-size: 13px;">
+        <input type="datetime-local" id="manual-dl-when" style="width: 100%; margin-top: 8px; padding: 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); font-size: 13px;">
+        <button type="button" class="btn btn-primary btn-full" id="btn-add-manual-deadline" style="margin-top: 10px;">Add to schedule</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Course Detail Panel -->
+  <div class="panel-overlay" id="overlay-course-detail"></div>
+  <div class="panel" id="panel-course-detail">
+    <div class="panel-header">
+      <h2 id="course-detail-title">Course Details</h2>
+      <button class="panel-close" data-close="course-detail">✕</button>
+    </div>
+    <div class="panel-body" id="course-detail-body">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <script src="../vendor/pdf.min.js"></script>
+  <script src="../vendor/mammoth.browser.min.js"></script>
+  <script src="../js/syllabus-file-loader.js"></script>
+  <script src="../js/popup.js"></script>
+</body>
+</html>
