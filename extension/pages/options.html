@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="../css/options.css">
+  <title>Student Assistant - Settings</title>
+</head>
+<body>
+  <div class="options-container">
+    <div class="options-header">
+      <h1>🎓 Student Assistant Settings</h1>
+      <p>Configure your Blackboard connection and notification preferences</p>
+    </div>
+
+    <!-- Blackboard Connection -->
+    <div class="options-section">
+      <h2>🔗 Blackboard Connection</h2>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Blackboard URL</div>
+          <div class="option-desc">Enter your college's Blackboard URL</div>
+          <input type="url" id="opt-bb-url" class="blackboard-url-input" placeholder="https://elearning.utdallas.edu">
+        </div>
+      </div>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Auto-Scan on Visit</div>
+          <div class="option-desc">Automatically scan for new assignments when you visit Blackboard</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="opt-auto-scan" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Scan Frequency</div>
+          <div class="option-desc">How often to check for new deadlines</div>
+        </div>
+        <select id="opt-scan-freq">
+          <option value="30">Every 30 min</option>
+          <option value="60" selected>Every hour</option>
+          <option value="180">Every 3 hours</option>
+          <option value="360">Every 6 hours</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Notifications -->
+    <div class="options-section">
+      <h2>🔔 Notifications</h2>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Enable Notifications</div>
+          <div class="option-desc">Receive browser notifications for upcoming deadlines</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="opt-notif-enabled" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Notify Before Deadline</div>
+          <div class="option-desc">How far in advance to notify you</div>
+        </div>
+        <select id="opt-notif-advance">
+          <option value="1">1 hour before</option>
+          <option value="3">3 hours before</option>
+          <option value="6">6 hours before</option>
+          <option value="12">12 hours before</option>
+          <option value="24" selected>1 day before</option>
+          <option value="48">2 days before</option>
+          <option value="72">3 days before</option>
+        </select>
+      </div>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Daily Summary</div>
+          <div class="option-desc">Get a daily summary of upcoming tasks each morning</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="opt-daily-summary" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Google AI (Gemini) -->
+    <div class="options-section">
+      <h2>🤖 Google AI (Gemini)</h2>
+      <p class="oauth-help oauth-help-detail">
+        Used to parse syllabi from PDFs, DOCX, images, and to map Blackboard grades to syllabus categories. Create an API key in
+        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>
+        (Generative Language API). The key stays in this browser only.
+      </p>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">API key</div>
+          <div class="option-desc">Paste your Gemini API key</div>
+          <input type="password" id="opt-gemini-key" class="blackboard-url-input" placeholder="AIza..." autocomplete="off" style="font-family: monospace;">
+        </div>
+      </div>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Model (optional)</div>
+          <div class="option-desc">Default: gemini-2.0-flash</div>
+          <input type="text" id="opt-gemini-model" class="blackboard-url-input" placeholder="gemini-2.0-flash">
+        </div>
+      </div>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Use Google AI for syllabus parsing</div>
+          <div class="option-desc">
+            Off by default: syllabi are parsed locally with no API. Enable for image-only uploads or harder documents (requires API key above).
+          </div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="opt-gemini-syllabus">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Google Calendar -->
+    <div class="options-section">
+      <h2>📆 Google Calendar</h2>
+      <p class="oauth-help" id="oauth-extension-id-line">
+        <strong>Extension ID (for Google Cloud):</strong>
+        <code id="ext-id-display">—</code>
+        <button type="button" class="btn-inline-copy" id="btn-copy-ext-id" title="Copy extension ID">Copy</button>
+      </p>
+      <p class="oauth-help oauth-help-detail">
+        If Connect fails, open
+        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Credentials</a>,
+        edit your OAuth 2.0 Client ID of type <strong>Chrome extension</strong>, and set this Extension ID under
+        <strong>Application ID</strong>. Enable the <strong>Google Calendar API</strong> for the same project, then reload this extension.
+      </p>
+      <p class="oauth-help oauth-help-detail">
+        <strong>Error 403: access_denied?</strong> Usually the OAuth app is in <strong>Testing</strong> and your Google account is not listed as a
+        <strong>Test user</strong>. Open
+        <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" rel="noopener">OAuth consent screen</a>
+        → <strong>Audience</strong> → add your Gmail under <strong>Test users</strong>, save, then try Connect again. Or click <strong>Allow</strong> (not Block) on the Google prompt.
+      </p>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Calendar Connection</div>
+          <div class="option-desc" id="gcal-status">Not connected</div>
+        </div>
+        <button class="btn btn-primary" id="btn-connect-gcal">Connect</button>
+      </div>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Auto-Sync New Deadlines</div>
+          <div class="option-desc">Automatically add new deadlines to your calendar</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="opt-auto-sync-cal">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Study Plan -->
+    <div class="options-section">
+      <h2>📋 Study Plan Preferences</h2>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Study Hours Per Day</div>
+          <div class="option-desc">Maximum study hours you want planned per day</div>
+        </div>
+        <input type="number" id="opt-study-hours" value="4" min="1" max="16" style="width: 60px;">
+      </div>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Preferred Study Days</div>
+          <div class="option-desc">Select your preferred study days</div>
+        </div>
+        <div style="display: flex; gap: 4px;">
+          <button class="day-btn active" data-day="mon">M</button>
+          <button class="day-btn active" data-day="tue">T</button>
+          <button class="day-btn active" data-day="wed">W</button>
+          <button class="day-btn active" data-day="thu">T</button>
+          <button class="day-btn active" data-day="fri">F</button>
+          <button class="day-btn" data-day="sat">S</button>
+          <button class="day-btn" data-day="sun">S</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Management -->
+    <div class="options-section">
+      <h2>🗑️ Data Management</h2>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Export Data</div>
+          <div class="option-desc">Download all your course data as JSON</div>
+        </div>
+        <button class="btn btn-primary" id="btn-export">Export</button>
+      </div>
+      <div class="option-row">
+        <div class="option-info">
+          <div class="option-label">Clear All Data</div>
+          <div class="option-desc">Remove all stored courses, grades, and settings</div>
+        </div>
+        <button class="btn btn-danger" id="btn-clear-data">Clear Data</button>
+      </div>
+    </div>
+
+    <div style="height: 60px;"></div>
+  </div>
+
+  <div class="save-bar">
+    <button class="btn btn-primary" id="btn-save-options">💾 Save Settings</button>
+  </div>
+
+  <style>
+    .oauth-help {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 10px;
+      max-width: 720px;
+    }
+    .oauth-help code {
+      background: var(--bg-input);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      word-break: break-all;
+    }
+    .oauth-help-detail {
+      margin-bottom: 16px;
+    }
+    .oauth-help a {
+      color: var(--primary);
+    }
+    .btn-inline-copy {
+      margin-left: 8px;
+      padding: 2px 8px;
+      font-size: 11px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .btn-inline-copy:hover {
+      border-color: var(--primary);
+    }
+    .day-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .day-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+  </style>
+
+  <script src="../js/options.js"></script>
+</body>
+</html>
