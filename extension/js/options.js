@@ -51,8 +51,6 @@
       if (gemK && settings.geminiApiKey) gemK.value = settings.geminiApiKey;
       const gemM = $('#opt-gemini-model');
       if (gemM && settings.geminiModel) gemM.value = settings.geminiModel;
-      const gemSyl = $('#opt-gemini-syllabus');
-      if (gemSyl && settings.useGeminiForSyllabus !== undefined) gemSyl.checked = !!settings.useGeminiForSyllabus;
 
       if (settings.studyDays) {
         $$('.day-btn').forEach(btn => {
@@ -102,7 +100,6 @@
     const elStudy = $('#opt-study-hours');
     const elGemK = $('#opt-gemini-key');
     const elGemM = $('#opt-gemini-model');
-    const elGemSyl = $('#opt-gemini-syllabus');
 
     if (!elBb || !elAuto || !elFreq || !elNotif || !elAdv || !elDaily || !elCal || !elStudy) {
       alert('Settings page is incomplete. Reload the extension (chrome://extensions → Reload) so options.html matches the latest version.');
@@ -124,7 +121,6 @@
       studyDays,
       geminiApiKey: newGemKey || prev.geminiApiKey || '',
       geminiModel: newGemModel || prev.geminiModel || '',
-      useGeminiForSyllabus: elGemSyl ? elGemSyl.checked : false,
     };
 
     try {

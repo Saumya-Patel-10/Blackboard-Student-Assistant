@@ -448,6 +448,42 @@ body::-webkit-scrollbar-thumb {
   display: block;
 }
 
+.panel-grading-confirm {
+  z-index: 301;
+}
+#overlay-grading-confirm {
+  z-index: 300;
+}
+
+.grading-confirm-row {
+  display: grid;
+  grid-template-columns: 1fr 72px 36px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.grading-confirm-row input {
+  padding: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  font-size: 13px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.grading-confirm-row .gc-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+}
+.grading-confirm-row .gc-remove:hover {
+  color: var(--danger);
+}
+
 @keyframes slideUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }

@@ -220,10 +220,10 @@
         <input type="file" id="syllabus-file" accept=".pdf,.docx,.txt,.doc,.png,.jpg,.jpeg,.webp,.gif" style="display: none;">
       </div>
       <p style="font-size: 12px; color: var(--text-muted); margin-top: 10px;">
-        <strong>Local parsing:</strong> weights and dates are read from text you paste or extract from files — no API required. Optional Google AI is in Settings for difficult PDFs or image-only pages.
+        Parsing runs <strong>on your device only</strong> — paste text or upload PDF/DOCX. After parsing, you will review and confirm the grading weights before they are used in the grade calculator.
       </p>
       <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
-        <strong>Grading table as image:</strong> if PDF text is wrong, paste a screenshot — or enable AI syllabus parsing in Settings.
+        Optional: attach a grading-table screenshot for reference while you edit weights (not sent anywhere).
       </p>
       <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
         <button type="button" class="btn btn-secondary btn-sm" id="btn-syllabus-paste-image">Paste grading screenshot</button>
@@ -238,8 +238,34 @@
       <textarea id="syllabus-text" placeholder="Paste your syllabus text here..." style="width: 100%; min-height: 120px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); padding: 12px; font-size: 13px; font-family: inherit; resize: vertical;"></textarea>
       <div id="syllabus-file-status" class="syllabus-status hidden"></div>
       <button class="btn btn-primary btn-full" id="btn-parse-syllabus" style="margin-top: 12px;">Parse Syllabus</button>
+      <button type="button" class="btn btn-secondary btn-full" id="btn-manual-grading-only" style="margin-top: 8px;">Enter grading weights manually (no syllabus)</button>
       <div id="syllabus-results" class="hidden" style="margin-top: 16px;">
         <!-- Parsed results shown here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Grading weights confirmation (after syllabus parse) -->
+  <div class="panel-overlay" id="overlay-grading-confirm"></div>
+  <div class="panel panel-grading-confirm" id="panel-grading-confirm">
+    <div class="panel-header">
+      <h2>✅ Confirm grading weights</h2>
+      <button class="panel-close" id="btn-close-grading-confirm" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="panel-body">
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+        We found the categories below in your syllabus. Edit names and weights so they total about <strong>100%</strong>, then confirm. The grade calculator uses only what you confirm here.
+      </p>
+      <div id="grading-confirm-image-ref" class="hidden" style="margin-bottom: 12px;">
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">Reference image (from syllabus upload)</div>
+        <img id="grading-confirm-ref-img" alt="Grading reference" style="max-width: 100%; max-height: 120px; border-radius: 8px; border: 1px solid var(--border);">
+      </div>
+      <div id="grading-confirm-rows"></div>
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-grading-add-row" style="margin-top: 10px;">+ Add category</button>
+      <div id="grading-confirm-total" style="font-size: 13px; margin-top: 12px; font-weight: 600;"></div>
+      <div style="display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap;">
+        <button type="button" class="btn btn-primary btn-full" id="btn-grading-confirm-save" style="flex: 1;">Confirm &amp; use for grade calculator</button>
+        <button type="button" class="btn btn-secondary" id="btn-grading-confirm-cancel">Cancel</button>
       </div>
     </div>
   </div>

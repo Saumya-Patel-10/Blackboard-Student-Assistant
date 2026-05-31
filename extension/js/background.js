@@ -27,7 +27,6 @@ chrome.runtime.onInstalled.addListener((details) => {
         studyDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
         geminiApiKey: '',
         geminiModel: '',
-        useGeminiForSyllabus: false,
       },
       courses: [],
       assignments: [],
@@ -172,98 +171,6 @@ function dueIsoForAssignment(a) {
   return a.dueDateOverride || a.dueDate;
 }
 
-function normalizeSyllabusMerge(local, api) {
-  const pickBreakdown = () => {
-    const a = api?.gradingBreakdown;
-    const l = local?.gradingBreakdown;
-    if (a?.categories?.length) return a;
-    if (l?.categories?.length) return l;
-    return a || l || { categories: [], totalWeight: 0, isValid: false };
-  };
-
-  const mergeExams = () => {
-    const ex = [...(api?.exams || [])];
-    for (const e of local?.exams || []) {
-      const dup = ex.some(
-        (x) =>
-          x.type === e.type &&
-          (x.dateRaw || '') === (e.dateRaw || '') &&
-          (x.date || '') === (e.date || '')
-      );
-      if (!dup) ex.push(e);
-    }
-    return ex;
-  };
-
-  const mergeAssignments = () => {
-    const items = [...(api?.assignments || [])];
-    for (const it of local?.assignments || []) {
-      const dup = items.some(
-        (x) =>
-          (x.title || '').trim().toLowerCase() === (it.title || '').trim().toLowerCase() &&
-          (x.date || '') === (it.date || '')
-      );
-      if (!dup) items.push(it);
-    }
-    return items;
-  };
-
-  return {
-    gradingBreakdown: pickBreakdown(),
-    exams: mergeExams(),
-    assignments: mergeAssignments(),
-    officeHours: api?.officeHours ?? local?.officeHours ?? null,
-    courseInfo: { ...(local?.courseInfo || {}), ...(api?.courseInfo || {}) },
-    schedule: (api?.schedule?.length ? api.schedule : local?.schedule) || [],
-    policies: { ...(local?.policies || {}), ...(api?.policies || {}) },
-  };
-}
-
-async function parseSyllabusWithOptionalGemini(text, gradingImageDataUrl) {
-  const { settings = {} } = await chrome.storage.local.get('settings');
-  const apiKey = (settings.geminiApiKey || '').trim();
-  const useAi =
-    settings.useGeminiForSyllabus === true &&
-    !!apiKey &&
-    !!globalThis.BSAGeminiClient;
-  const trimmed = (text || '').trim();
-  const hasImage = !!gradingImageDataUrl;
-  const local = trimmed ? SyllabusParser.parse(trimmed) : { error: 'No text provided' };
-
-  if (!useAi) {
-    if (!trimmed && hasImage) {
-      return {
-        error:
-          'Image-only syllabus: add syllabus text (paste or PDF), or enable “Use Google AI for syllabus” in Settings and add an API key.',
-      };
-    }
-    return local;
-  }
-
-  if (!trimmed && !hasImage) {
-    return local;
-  }
-
-  try {
-    const model = settings.geminiModel || globalThis.BSAGeminiClient.DEFAULT_MODEL;
-    const raw = await globalThis.BSAGeminiClient.parseSyllabusStructured(apiKey, trimmed, hasImage ? gradingImageDataUrl : null);
-    const merged = trimmed ? normalizeSyllabusMerge(local, raw) : raw;
-    merged._source = 'gemini';
-    merged._model = model;
-    return merged;
-  } catch (e) {
-    console.warn('[BSA] Gemini syllabus parse failed, using local parser:', e);
-    if (trimmed && local && !local.error) {
-      local._parseWarning = e.message || String(e);
-      return local;
-    }
-    return {
-      error: e.message || String(e),
-      _parseWarning: trimmed && local && !local.error ? (e.message || String(e)) : undefined,
-    };
-  }
-}
-
 async function maybeAutoSyncCalendar() {
   const data = await chrome.storage.local.get(['settings', 'assignments', 'courses']);
   const settings = data.settings || {};
@@ -324,10 +231,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.action === 'parseSyllabus') {
-    (async () => {
-      const result = await parseSyllabusWithOptionalGemini(msg.text, msg.gradingImageDataUrl);
-      sendResponse(result);
-    })();
+    const trimmed = (msg.text || '').trim();
+    if (!trimmed) {
+      sendResponse({ error: 'Paste or upload syllabus text to parse (local parser only).' });
+      return true;
+    }
+    const result = SyllabusParser.parse(trimmed);
+    sendResponse(result);
     return true;
   }
 

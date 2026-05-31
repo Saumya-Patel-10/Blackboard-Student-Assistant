@@ -291,8 +291,19 @@
     $('#btn-syllabus-clear-image')?.addEventListener('click', clearSyllabusGradingImage);
     $('#panel-syllabus')?.addEventListener('paste', handleSyllabusPanelPaste);
     $('#btn-parse-syllabus').addEventListener('click', handleParseSyllabus);
+    $('#btn-manual-grading-only')?.addEventListener('click', handleManualGradingOnly);
     $('#syllabus-course-select').addEventListener('change', () => {
       updateSyllabusImagePreviewForCourse($('#syllabus-course-select').value);
+    });
+
+    $('#btn-grading-confirm-save')?.addEventListener('click', saveGradingConfirm);
+    $('#btn-grading-confirm-cancel')?.addEventListener('click', closeGradingConfirmPanel);
+    $('#btn-close-grading-confirm')?.addEventListener('click', closeGradingConfirmPanel);
+    $('#overlay-grading-confirm')?.addEventListener('click', closeGradingConfirmPanel);
+    $('#btn-grading-add-row')?.addEventListener('click', () => {
+      const cats = readGradingConfirmRows();
+      cats.push({ category: '', weight: '' });
+      renderGradingConfirmRows(cats);
     });
 
     // Deadlines: manual edit + rescan
@@ -381,15 +392,24 @@
     const syllabus = appState.syllabusData[courseId];
 
     let categories = [];
-    if (syllabus?.gradingBreakdown?.categories?.length > 0) {
-      categories = syllabus.gradingBreakdown.categories.map((c) => ({
+    const confirmed = getConfirmedGradingCategories(courseId);
+    if (confirmed?.length > 0) {
+      categories = confirmed.map((c) => ({
         category: c.category,
         weight: c.weight,
       }));
+    } else if (syllabus?.gradingBreakdown?.categories?.length > 0 && !syllabus.gradingConfirmed) {
+      container.innerHTML =
+        '<p style="font-size: 13px; color: var(--warning); margin-top: 8px;">Syllabus parsed but grading weights are <strong>not confirmed</strong>. Open <strong>Upload Syllabus</strong>, select this course, and click <strong>Edit grading weights</strong> to confirm.</p>';
+      container.dataset.categories = '[]';
+      container.dataset.courseId = courseId || '';
+      $('#grade-result').classList.add('hidden');
+      document.getElementById('grade-weight-note')?.remove();
+      return;
     } else {
       const usePlaceholder = window.confirm(
-        'No grading breakdown was found for this course. Parse your syllabus on the Syllabus screen first.\n\n' +
-          'Use example categories (assignments, exams, participation) as placeholders? Choose Cancel to leave the calculator empty until you parse a syllabus.'
+        'No confirmed grading breakdown for this course. Parse your syllabus and confirm weights first.\n\n' +
+          'Use example categories as placeholders? Cancel to leave the calculator empty.'
       );
       if (usePlaceholder) {
         categories = [
@@ -1067,6 +1087,142 @@
 
   // === Syllabus ===
 
+  function getConfirmedGradingCategories(courseId) {
+    const syllabus = appState.syllabusData[courseId];
+    if (!syllabus?.gradingConfirmed || !syllabus.gradingBreakdown?.categories?.length) {
+      return null;
+    }
+    return syllabus.gradingBreakdown.categories;
+  }
+
+  function buildGradingBreakdownFromCategories(categories) {
+    const cleaned = categories
+      .filter((c) => String(c.category || '').trim() && c.weight > 0)
+      .map((c) => ({
+        category: String(c.category).trim(),
+        weight: parseInt(c.weight, 10),
+      }));
+    const totalWeight = cleaned.reduce((s, c) => s + c.weight, 0);
+    return {
+      categories: cleaned,
+      totalWeight,
+      isValid: totalWeight >= 90 && totalWeight <= 110,
+    };
+  }
+
+  function readGradingConfirmRows() {
+    const rows = $$('#grading-confirm-rows .grading-confirm-row');
+    return [...rows].map((row) => ({
+      category: row.querySelector('.gc-cat-name')?.value?.trim() || '',
+      weight: parseInt(row.querySelector('.gc-cat-weight')?.value, 10) || 0,
+    }));
+  }
+
+  function updateGradingConfirmTotal() {
+    const cats = readGradingConfirmRows();
+    const total = cats.reduce((s, c) => s + (c.weight > 0 ? c.weight : 0), 0);
+    const el = $('#grading-confirm-total');
+    if (!el) return;
+    const ok = total >= 90 && total <= 110;
+    el.style.color = ok ? 'var(--success)' : 'var(--warning)';
+    el.textContent = `Total weight: ${total}%${ok ? ' ✓' : ' (aim for ~100%)'}`;
+  }
+
+  function renderGradingConfirmRows(categories) {
+    const container = $('#grading-confirm-rows');
+    if (!container) return;
+    const list =
+      categories?.length > 0 ? categories : [{ category: '', weight: '' }];
+    container.innerHTML = list
+      .map(
+        (c) => `
+      <div class="grading-confirm-row">
+        <input type="text" class="gc-cat-name" placeholder="Category (e.g. Exam 1)" value="${escapeHtml(String(c.category || ''))}">
+        <input type="number" class="gc-cat-weight" min="0" max="100" placeholder="%" value="${c.weight != null && c.weight !== '' ? Number(c.weight) : ''}">
+        <button type="button" class="gc-remove" title="Remove">✕</button>
+      </div>`
+      )
+      .join('');
+    container.querySelectorAll('.gc-cat-weight, .gc-cat-name').forEach((el) => {
+      el.addEventListener('input', updateGradingConfirmTotal);
+    });
+    container.querySelectorAll('.gc-remove').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        btn.closest('.grading-confirm-row')?.remove();
+        if (!container.querySelector('.grading-confirm-row')) {
+          renderGradingConfirmRows([{ category: '', weight: '' }]);
+        }
+        updateGradingConfirmTotal();
+      });
+    });
+    updateGradingConfirmTotal();
+  }
+
+  function openGradingConfirmPanel(courseId) {
+    const data = appState.syllabusData[courseId];
+    if (!data) return;
+    const panel = $('#panel-grading-confirm');
+    if (panel) panel.dataset.courseId = courseId;
+    const refWrap = $('#grading-confirm-image-ref');
+    const refImg = $('#grading-confirm-ref-img');
+    if (data.gradingScaleImage && refWrap && refImg) {
+      refImg.src = data.gradingScaleImage;
+      refWrap.classList.remove('hidden');
+    } else if (refWrap) {
+      refWrap.classList.add('hidden');
+    }
+    const cats = data.gradingBreakdown?.categories?.length
+      ? data.gradingBreakdown.categories.map((c) => ({ ...c }))
+      : [{ category: '', weight: '' }];
+    renderGradingConfirmRows(cats);
+    $('#overlay-grading-confirm')?.classList.add('active');
+    $('#panel-grading-confirm')?.classList.add('active');
+  }
+
+  function closeGradingConfirmPanel() {
+    $('#overlay-grading-confirm')?.classList.remove('active');
+    $('#panel-grading-confirm')?.classList.remove('active');
+  }
+
+  async function saveGradingConfirm() {
+    const courseId = $('#panel-grading-confirm')?.dataset.courseId;
+    if (!courseId) return;
+    const raw = readGradingConfirmRows().filter((c) => c.category.trim());
+    if (raw.length === 0) {
+      alert('Add at least one category with a name and weight.');
+      return;
+    }
+    for (const c of raw) {
+      if (!c.weight || c.weight <= 0 || c.weight > 100) {
+        alert(`Set a weight between 1 and 100 for "${c.category}".`);
+        return;
+      }
+    }
+    const breakdown = buildGradingBreakdownFromCategories(raw);
+    if (!breakdown.isValid) {
+      const proceed = window.confirm(
+        `Weights total ${breakdown.totalWeight}% (expected about 100%). Save anyway?`
+      );
+      if (!proceed) return;
+    }
+    const data = appState.syllabusData[courseId] || {};
+    appState.syllabusData[courseId] = {
+      ...data,
+      gradingBreakdown: breakdown,
+      gradingConfirmed: true,
+      gradingConfirmedAt: new Date().toISOString(),
+    };
+    await chrome.storage.local.set({ syllabusData: appState.syllabusData });
+    closeGradingConfirmPanel();
+    renderSyllabusResults(appState.syllabusData[courseId]);
+    const st = $('#syllabus-file-status');
+    if (st) {
+      st.classList.remove('hidden');
+      st.className = 'syllabus-status success';
+      st.textContent = 'Grading weights confirmed — grade calculator will use these categories.';
+    }
+  }
+
   function populateSyllabusPanel() {
     const select = $('#syllabus-course-select');
     select.innerHTML = '<option value="">Select Course</option>';
@@ -1200,9 +1356,30 @@
     }
   }
 
+  async function handleManualGradingOnly() {
+    const courseId = $('#syllabus-course-select').value;
+    if (!courseId) {
+      alert('Select a course first.');
+      return;
+    }
+    const existing = appState.syllabusData[courseId] || {};
+    appState.syllabusData[courseId] = {
+      ...existing,
+      gradingBreakdown: existing.gradingBreakdown || {
+        categories: [],
+        totalWeight: 0,
+        isValid: false,
+      },
+      gradingConfirmed: false,
+    };
+    await chrome.storage.local.set({ syllabusData: appState.syllabusData });
+    renderSyllabusResults(appState.syllabusData[courseId]);
+    openGradingConfirmPanel(courseId);
+  }
+
   async function handleParseSyllabus() {
     const courseId = $('#syllabus-course-select').value;
-    let text = $('#syllabus-text').value.trim();
+    const text = $('#syllabus-text').value.trim();
     const parseBtn = $('#btn-parse-syllabus');
     const statusEl = $('#syllabus-file-status');
 
@@ -1210,14 +1387,13 @@
       alert('Please select a course first.');
       return;
     }
-    const hasGradingImage = $('#syllabus-grading-preview')?.src?.startsWith('data:');
-    if (!text && !hasGradingImage) {
-      alert('Paste syllabus text, upload a PDF/DOCX, or attach a syllabus image (screenshot).');
+    if (!text) {
+      alert('Paste syllabus text or upload a PDF/DOCX file. Parsing runs locally on your device.');
       return;
     }
 
     const loader = (typeof globalThis !== 'undefined' ? globalThis : window).BSASyllabusFileLoader;
-    if (text && loader?.looksLikeBinaryGarbage?.(text)) {
+    if (loader?.looksLikeBinaryGarbage?.(text)) {
       statusEl.classList.remove('hidden');
       statusEl.className = 'syllabus-status error';
       statusEl.textContent =
@@ -1229,10 +1405,7 @@
     parseBtn.disabled = true;
     parseBtn.textContent = 'Parsing…';
 
-    const gradingImageDataUrl =
-      $('#syllabus-grading-preview')?.src?.startsWith('data:') ? $('#syllabus-grading-preview').src : null;
-
-    chrome.runtime.sendMessage({ action: 'parseSyllabus', text, gradingImageDataUrl }, async (result) => {
+    chrome.runtime.sendMessage({ action: 'parseSyllabus', text }, async (result) => {
       parseBtn.disabled = false;
       parseBtn.textContent = prevLabel;
 
@@ -1247,22 +1420,25 @@
       if (!result || result.error) {
         statusEl.classList.remove('hidden');
         statusEl.className = 'syllabus-status error';
-        statusEl.textContent = 'Could not parse syllabus. Check the text and try again, or paste a different section.';
+        statusEl.textContent = result?.error || 'Could not parse syllabus. Paste the grading section and try again.';
         return;
       }
-
-      appState.syllabusData[courseId] = result;
-      await chrome.storage.local.set({ syllabusData: appState.syllabusData });
-      mergeManualExamsIntoSyllabusData();
 
       const imgPrev = $('#syllabus-grading-preview');
       if (imgPrev?.src?.startsWith('data:')) {
         result.gradingScaleImage = imgPrev.src;
       }
 
+      result.gradingConfirmed = false;
+      delete result.gradingConfirmedAt;
+
+      appState.syllabusData[courseId] = result;
+      await chrome.storage.local.set({ syllabusData: appState.syllabusData });
+      mergeManualExamsIntoSyllabusData();
+
       if (result.exams?.length > 0) {
         const examAssignments = result.exams
-          .filter(e => e.date)
+          .filter((e) => e.date)
           .map((e, ei) => ({
             id: `exam_${courseId}_syllabus_${ei}`,
             title: e.type,
@@ -1276,11 +1452,11 @@
 
         const existing = new Set(
           appState.assignments
-            .filter(a => a.courseId === courseId && effectiveDueDate(a))
-            .map(a => `${(a.title || '').trim().toLowerCase()}|${effectiveDueDate(a)}`)
+            .filter((a) => a.courseId === courseId && effectiveDueDate(a))
+            .map((a) => `${(a.title || '').trim().toLowerCase()}|${effectiveDueDate(a)}`)
         );
         const toAdd = examAssignments.filter(
-          a => !existing.has(`${(a.title || '').trim().toLowerCase()}|${a.dueDate}`)
+          (a) => !existing.has(`${(a.title || '').trim().toLowerCase()}|${a.dueDate}`)
         );
         appState.assignments = [...appState.assignments, ...toAdd];
         await chrome.storage.local.set({ assignments: appState.assignments });
@@ -1288,12 +1464,10 @@
 
       statusEl.classList.remove('hidden');
       statusEl.className = 'syllabus-status success';
-      statusEl.textContent =
-        result._source === 'gemini'
-          ? 'Syllabus parsed with Google AI. Results are below.'
-          : 'Syllabus parsed locally (no API). Results are below.';
+      statusEl.textContent = 'Parsed locally. Review grading weights in the window below.';
 
       renderSyllabusResults(result);
+      openGradingConfirmPanel(courseId);
       render();
     });
   }
@@ -1514,13 +1688,15 @@
         : data;
 
     let html = '<div class="section-title" style="margin-top: 0;">📊 Parsed Results</div>';
-    if (merged._parseWarning) {
-      html += `<div style="font-size: 11px; color: var(--warning); margin-bottom: 8px;">⚠️ ${escapeHtml(merged._parseWarning)} (local parser used)</div>`;
-    } else if (merged._source === 'gemini') {
-      html += `<div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Parsed with Google AI${merged._model ? ` (${escapeHtml(merged._model)})` : ''}.</div>`;
-    } else {
-      html += `<div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Parsed on your device (no syllabus API call).</div>`;
+    html += `<div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Parsed on your device (no API).</div>`;
+
+    if (merged.gradingConfirmed) {
+      html += `<div style="font-size: 12px; color: var(--success); margin-bottom: 8px;">✓ Grading weights confirmed for grade calculator</div>`;
+    } else if (merged.gradingBreakdown?.categories?.length > 0) {
+      html += `<div style="font-size: 12px; color: var(--warning); margin-bottom: 8px;">⚠ Grading weights not confirmed yet — grade calculator will not use them until you confirm.</div>`;
     }
+
+    html += `<button type="button" class="btn btn-secondary btn-sm" id="btn-edit-grading-weights" style="margin-bottom: 12px;">Edit grading weights</button>`;
 
     if (merged.courseInfo?.courseNumber || merged.courseInfo?.instructor) {
       html += `<div class="card" style="cursor: default;">`;
@@ -1537,15 +1713,17 @@
     }
 
     if (merged.gradingBreakdown?.categories?.length > 0) {
-      html += `<div class="section-title">Grading Breakdown</div>`;
+      html += `<div class="section-title">Grading Breakdown${merged.gradingConfirmed ? ' (confirmed)' : ' (pending confirm)'}</div>`;
       html += `<table class="grade-table"><thead><tr><th>Category</th><th>Weight</th></tr></thead><tbody>`;
       for (const cat of merged.gradingBreakdown.categories) {
         html += `<tr><td>${escapeHtml(cat.category)}</td><td>${cat.weight}%</td></tr>`;
       }
       html += `</tbody></table>`;
       if (!merged.gradingBreakdown.isValid) {
-        html += `<div style="font-size: 11px; color: var(--warning);">⚠️ Weights total ${merged.gradingBreakdown.totalWeight}% (expected ~100%)</div>`;
+        html += `<div style="font-size: 11px; color: var(--warning);">⚠️ Weights total ${merged.gradingBreakdown.totalWeight}% (expected ~100%) — fix in Edit grading weights</div>`;
       }
+    } else {
+      html += `<div style="font-size: 12px; color: var(--text-muted); margin: 8px 0;">No categories detected. Click <strong>Edit grading weights</strong> to add them manually.</div>`;
     }
 
     if (merged.exams?.length > 0) {
@@ -1562,6 +1740,10 @@
     }
 
     container.innerHTML = html;
+    $('#btn-edit-grading-weights')?.addEventListener('click', () => {
+      const cid = $('#syllabus-course-select')?.value;
+      if (cid) openGradingConfirmPanel(cid);
+    });
   }
 
   // === Course Detail ===
