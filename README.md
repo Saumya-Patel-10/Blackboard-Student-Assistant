@@ -1,76 +1,77 @@
 # Blackboard Student Assistant
 
-A **Chrome extension** that helps students stay on top of **Blackboard** (Learn Ultra and classic): it scans open course pages for **deadlines**, **grades**, and **courses**, surfaces them in a compact popup, and adds optional **Google Calendar** sync and **AI-assisted** syllabus parsing via the **Google Gemini API**.
+A **Chrome extension** that helps students stay on top of **Blackboard** (Learn Ultra and classic): scan deadlines and grades, parse syllabi **locally**, confirm grading weights, calculate course grades, and optionally sync to **Google Calendar**.
+
+---
+
+## Download (ZIP — ready to install)
+
+**Latest release (v1.2.0)** — includes the full `extension` folder and icons:
+
+| File | Link |
+|------|------|
+| **ZIP in this repo** | [releases/Blackboard-Student-Assistant-v1.2.0.zip](releases/Blackboard-Student-Assistant-v1.2.0.zip) |
+| **GitHub auto-ZIP (`main`)** | [Download main branch as ZIP](https://github.com/Saumya-Patel-10/Blackboard-Student-Assistant/archive/refs/heads/main.zip) |
+
+### Install from the ZIP
+
+1. Download and **unzip** the file.
+2. Open **Chrome** → `chrome://extensions` → turn on **Developer mode**.
+3. Click **Load unpacked** → select the **`extension`** folder inside the unzipped folder.
+4. Open **Options** and set your Blackboard URL if needed.
+
+You do **not** need a `.git` folder to run the extension.
 
 ---
 
 ## Highlights
 
-- **Deadline awareness** — Aggregates upcoming work from the current Blackboard view, with optional browser notifications before due dates.
-- **Grade calculator** — Combines syllabus **category weights** with grades scraped from Blackboard. With a **Gemini API key**, the extension sends grade lines to the model in a fixed format (`HW1 - 9/10 HW2 - 10/10`) and can use a **screenshot of the active tab** so category averages align with what you see on screen.
-- **Syllabus intelligence** — Upload **PDF**, **DOCX**, or **plain text**, or attach a **screenshot** of the syllabus. Local heuristics run first; **Gemini** fills gaps for messy PDFs, scans, and images when an API key is configured.
-- **Google Calendar** — Sync selected deadlines to your primary calendar. Events carry a **private sync id** so **re-syncing updates the same event** instead of creating duplicates.
-- **Study planner** — Builds a simple weekly plan from deadlines and your stated study availability (configured in options).
+- **Deadlines** — Scan Blackboard; edit dates under **Update schedule**; optional notifications.
+- **Syllabus (local only)** — Upload PDF/DOCX or paste text. Parsing runs **on your device** with **no API**.
+- **Confirm grading weights** — After parse, review/edit categories and weights in a confirmation panel. The **grade calculator uses only confirmed weights**.
+- **Grade calculator** — Enter scores as **percent** or **earned/total** (e.g. `72/80`). Weights should total ~100%.
+- **Google Calendar** — Sync deadlines and exams (optional OAuth in Settings).
+- **Gemini (optional)** — Only for **Fill from Blackboard grades** in the calculator, not for syllabus parsing.
 
 ---
 
-## Installation (development)
+## Syllabus workflow
 
-1. Clone this repository.
-2. Open **Chrome** → `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select the `extension` folder.
-3. Pin the extension and open **Options** to set your institution’s Blackboard base URL if needed.
+1. **Upload Syllabus** → select course → paste text or upload PDF/DOCX → **Parse Syllabus**.
+2. The **Confirm grading weights** panel opens with detected categories (e.g. Exam 1–4 at 12% each).
+3. Edit names/weights → **Confirm & use for grade calculator**.
+4. Open **Calculate Grades** for that course.
+
+You can also use **Enter grading weights manually** without parsing a syllabus, or **Edit grading weights** later from parsed results.
+
+---
+
+## Get the code with Git
+
+```bash
+git clone https://github.com/Saumya-Patel-10/Blackboard-Student-Assistant.git
+cd Blackboard-Student-Assistant
+```
+
+Load the `extension` folder in Chrome as above. The hidden **`.git`** folder is created by `git clone` on your machine — it is **never** uploaded to GitHub.
 
 ---
 
 ## Configuration
 
-### Blackboard URL
-
-In **Extension options**, set your school’s Blackboard origin (for example `https://elearning.utdallas.edu`). This is used for background auto-scan when that feature is enabled.
-
-### Google AI (Gemini)
-
-1. Create an API key in [Google AI Studio](https://aistudio.google.com/apikey) (Generative Language API).
-2. Paste it under **Google AI (Gemini)** in the options page. The key is stored only in **local extension storage** on your machine.
-
-Without a key, syllabus parsing uses **local text rules** only, and grade fill falls back to **keyword matching** between Blackboard item names and syllabus categories.
-
-### Google Calendar
-
-The extension uses **OAuth2** with the `calendar.events` scope. For **Chrome extension** OAuth clients, register the **extension ID** shown in options with Google Cloud and enable the **Google Calendar API**. Use **Connect** in options to authorize.
-
-**Auto-sync** (optional): when enabled, new scans can push **upcoming** deadlines to Calendar; each logical assignment maps to one Calendar event, **updated** on subsequent syncs rather than duplicated.
+- **Blackboard URL** — Options → your school’s Blackboard origin (e.g. `https://elearning.utdallas.edu`).
+- **Google Calendar** — Options → Connect (requires Google Cloud OAuth setup for the extension ID).
+- **Gemini API key (optional)** — Options → for AI grade fill from Blackboard only.
 
 ---
 
-## How to use
+## Privacy
 
-1. **Sign in to Blackboard** in a normal tab. Visit course lists, the activity stream, or the **Grades** page.
-2. Open the extension popup and use **refresh** to scan the **active tab**, or rely on automatic scans if configured.
-3. **Upload Syllabus** — Pick a course, add file or paste text (or image with Gemini), then **Parse Syllabus**.
-4. **Calculate Grades** — Choose a course, optionally set a **target %** (prompted once when you first have data), then **Fill from Blackboard grades (AI)** with the Grades page visible if you use screen capture.
-5. **Sync Calendar** — Select deadlines and sync; repeat safely — existing events are **updated** by sync id.
-
----
-
-## Privacy and security
-
-- **Blackboard data** is processed locally in the browser except when you **opt in** to Gemini (syllabus or grade inference) or **Google Calendar** (events API).
-- **Gemini** requests include syllabus text and/or images you provide, formatted grade strings, and optionally a **JPEG capture of the visible tab** when you enable that option.
-- Review [Google’s AI terms](https://ai.google.dev/terms) and your institution’s policies before use.
-
----
-
-## Technical stack
-
-- **Manifest V3** service worker (`background.js`)
-- **Content scripts** for DOM scraping on Blackboard / Canvas-style hosts allowed in `manifest.json`
-- **pdf.js** and **mammoth** (bundled) for PDF/DOCX text extraction
-- **Google Calendar REST API** with `extendedProperties.private` for deduplication
-- **Gemini** `generateContent` (REST) for structured JSON extraction
+- Syllabus parsing and most Blackboard scraping stay **in the browser**.
+- **Gemini** and **Google Calendar** are used only when you configure them and use those features.
 
 ---
 
 ## License
 
-This project is provided as-is for educational and productivity use. Ensure compliance with your learning management system’s terms of service and your school’s academic integrity rules.
+Provided as-is for educational use. Comply with your LMS terms and academic integrity policies.

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Blackboard Student Assistant",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzKdiqqceK12lqeUOPtcdtbrDkhrUKvHrqpVTyFN1erGF2iWJd5NBcwBASuSK82C8zRb4VfsHO568GkPBPOS2aKNRUQhiBemPjZiSh07hUTHJdIUIsFZ/r13xwx8nrbpkWS/FQJZ5iMHby3hIs6gG+rs9o6lHjlTMqB/BSudKkh9r+kg8lhuz0txsFHqsDUg9JdFWH9uqjRdlYbGQ0p4sNXQH2Kjo7xgc/7sTdbuv2aYtor9OrgWZRKeskdjNWCL4dixAO6VD6YSYMrKBvcCukLL4/7VZDE46H/KXKwVsFbQvTQsFpaGSLpHVUztho/EX1owzbavHhlI2hY1ejMupNQIDAQAB",
   "description": "Scans your college Blackboard for deadlines, grades, and schedules. Provides deadline notifications, grade calculations, Google Calendar integration, and personalized study plans.",
   "permissions": [
