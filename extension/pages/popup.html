@@ -129,12 +129,27 @@
           <option value="">Select Course</option>
         </select>
       </div>
-      <button type="button" class="btn btn-secondary btn-full" id="btn-fill-grades-bb" style="margin-top: 10px;">Fill from Blackboard grades (AI)</button>
-      <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--text-muted); cursor: pointer;">
-        <input type="checkbox" id="opt-ai-screen-capture" checked>
-        Capture current tab for the API (recommended — aligns grades with your screen)
-      </label>
-      <p style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">Sends grade lines to Google AI in the format <code style="font-size: 10px;">HW1 - 9/10 HW2 - 10/10</code> (averaged per category). Add your API key in Settings.</p>
+
+      <div class="section-title" style="margin-top: 12px;">Calculator mode</div>
+      <div class="tab-bar grade-mode-bar">
+        <button type="button" class="tab-btn active grade-mode-btn" data-grade-mode="course">Course grade</button>
+        <button type="button" class="tab-btn grade-mode-btn" data-grade-mode="exam-needed">Score needed on exam</button>
+      </div>
+
+      <div id="grade-drop-section" class="grade-drop-box" style="margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius);">
+        <div style="font-size: 13px; font-weight: 600; margin-bottom: 8px;">Dropped assignments or exams?</div>
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; cursor: pointer;">
+          <input type="radio" name="grade-drops" value="no" checked> No drops
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+          <input type="radio" name="grade-drops" value="yes"> Yes — drop items (use codes from the table, e.g. E1, A2, A3)
+        </label>
+        <input type="text" id="grade-drop-codes" class="hidden" placeholder="E1, A2, A3" style="width: 100%; margin-top: 10px; padding: 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-size: 13px;">
+      </div>
+
+      <button type="button" class="btn btn-secondary btn-full" id="btn-fill-grades-bb" style="margin-top: 10px;">Fill from Blackboard (match names)</button>
+      <p style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">Matches scanned Blackboard items to categories by name — no API key required. You can edit any cell after.</p>
+
       <div id="grade-categories">
         <!-- Populated dynamically -->
       </div>
@@ -142,13 +157,20 @@
         <div class="big-grade" id="calculated-grade">--</div>
         <div class="letter-grade" id="letter-grade">Select a course to begin</div>
       </div>
-      <div style="margin-top: 12px;">
-        <div class="section-title">🎯 What Grade Do You Need?</div>
+
+      <div id="grade-exam-needed-panel" class="hidden" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+        <div class="section-title">🎯 What do I need on an exam?</div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">Enter grades for everything else above, then pick the exam and your target course grade.</p>
         <div class="goal-input-group">
-          <input type="number" id="target-grade" placeholder="Target %" min="0" max="100">
-          <button class="btn btn-primary btn-sm" id="btn-calc-needed">Calculate</button>
+          <select id="grade-target-exam-select" style="flex: 1;">
+            <option value="">Which exam?</option>
+          </select>
         </div>
-        <div id="needed-grade-result" class="hidden" style="font-size: 13px; color: var(--text-muted); margin-top: 8px;"></div>
+        <div class="goal-input-group" style="margin-top: 8px;">
+          <input type="number" id="target-grade-exam" placeholder="Target course %" min="0" max="100">
+          <button type="button" class="btn btn-primary btn-sm" id="btn-calc-exam-needed">Calculate</button>
+        </div>
+        <div id="exam-needed-result" class="hidden" style="font-size: 13px; color: var(--text-muted); margin-top: 8px;"></div>
       </div>
     </div>
   </div>

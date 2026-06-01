@@ -47,11 +47,6 @@
       const studyH = $('#opt-study-hours');
       if (studyH && settings.studyHoursPerDay) studyH.value = String(settings.studyHoursPerDay);
 
-      const gemK = $('#opt-gemini-key');
-      if (gemK && settings.geminiApiKey) gemK.value = settings.geminiApiKey;
-      const gemM = $('#opt-gemini-model');
-      if (gemM && settings.geminiModel) gemM.value = settings.geminiModel;
-
       if (settings.studyDays) {
         $$('.day-btn').forEach(btn => {
           btn.classList.toggle('active', settings.studyDays.includes(btn.dataset.day));
@@ -98,16 +93,13 @@
     const elDaily = $('#opt-daily-summary');
     const elCal = $('#opt-auto-sync-cal');
     const elStudy = $('#opt-study-hours');
-    const elGemK = $('#opt-gemini-key');
-    const elGemM = $('#opt-gemini-model');
 
     if (!elBb || !elAuto || !elFreq || !elNotif || !elAdv || !elDaily || !elCal || !elStudy) {
       alert('Settings page is incomplete. Reload the extension (chrome://extensions → Reload) so options.html matches the latest version.');
       return;
     }
 
-    const newGemKey = elGemK ? elGemK.value.trim() : '';
-    const newGemModel = elGemM ? elGemM.value.trim() : '';
+    const newGemKey = '';
 
     const settings = {
       blackboardUrl: elBb.value.trim().replace(/\/$/, ''),
@@ -119,8 +111,6 @@
       autoSyncCalendar: elCal.checked,
       studyHoursPerDay: parseInt(elStudy.value, 10) || 4,
       studyDays,
-      geminiApiKey: newGemKey || prev.geminiApiKey || '',
-      geminiModel: newGemModel || prev.geminiModel || '',
     };
 
     try {

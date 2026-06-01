@@ -298,6 +298,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.action === 'calculateNeededOnCategory') {
+    const result = GradeCalculator.calculateNeededOnCategory(
+      msg.categories,
+      msg.targetGrade,
+      msg.categoryCode
+    );
+    sendResponse(result);
+    return true;
+  }
+
   if (msg.action === 'generatePlan') {
     const result = StudyPlanner.generatePlan(msg.config);
     sendResponse(result);
