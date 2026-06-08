@@ -42,7 +42,12 @@
     listenForMessages() {
       chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         if (msg.action === 'scan') {
-          this.scan().then(() => sendResponse({ success: true }));
+          this.scan().then(() => sendResponse({
+            success: true,
+            coursesCount: this.courses.length,
+            assignmentsCount: this.assignments.length,
+            gradesCount: this.grades.length,
+          }));
           return true;
         }
         if (msg.action === 'getPageData') {
@@ -60,6 +65,9 @@
     async scan() {
       this.showScanIndicator();
       try {
+        await this.waitForPageLoad();
+        await this.waitForCourseSignals();
+
         this.courses = this.scrapeCourses();
         this.assignments = this.scrapeAssignments();
         this.grades = this.scrapeGrades();
@@ -227,64 +235,193 @@
       return Array.from(byKey.values());
     },
 
+    /** Walk document + open shadow roots (Blackboard Ultra uses web components). */
+    queryAllDeep(selector, root = document) {
+      const results = [];
+      const visit = (node) => {
+        if (!node) return;
+        if (node.querySelectorAll) {
+          try {
+            node.querySelectorAll(selector).forEach((el) => results.push(el));
+          } catch (_) {}
+        }
+        const children = node.children || [];
+        for (const child of children) visit(child);
+        if (node.shadowRoot) visit(node.shadowRoot);
+      };
+      visit(root);
+      return results;
+    },
+
+    waitForCourseSignals() {
+      return new Promise((resolve) => {
+        let attempts = 0;
+        const tick = () => {
+          attempts++;
+          if (this.hasCourseSignals() || attempts >= 12) return resolve();
+          setTimeout(tick, 400);
+        };
+        setTimeout(tick, 300);
+      });
+    },
+
+    hasCourseSignals() {
+      const probes = [
+        '[data-course-id]',
+        'a[href*="course"]',
+        'bb-base-course-org-list',
+        '[class*="course-card"]',
+        '[class*="course-list"]',
+        '[class*="course-org"]',
+        '#content_listContainer',
+      ];
+      return probes.some((sel) => this.queryAllDeep(sel).length > 0);
+    },
+
+    addCourse(courses, seen, course, courseColors) {
+      if (!course?.id || !course?.name) return;
+      const key = `${course.id}|${course.name.substring(0, 60).toLowerCase()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      courses.push({
+        id: course.id,
+        name: this.cleanCourseName(course.name),
+        fullName: course.fullName || course.name,
+        url: course.url || window.location.href,
+        color: courseColors[courses.length % courseColors.length],
+        currentGrade: null,
+      });
+    },
+
+    scrapeCoursesFromDataAttributes(courses, seen, courseColors) {
+      const attrEls = this.queryAllDeep('[data-course-id]');
+      attrEls.forEach((el) => {
+        const courseId = (el.getAttribute('data-course-id') || '').trim();
+        if (!courseId) return;
+
+        const link = el.closest('a[href]') || el.querySelector('a[href]');
+        const href = link?.getAttribute('href') || '';
+        const titleEl = el.querySelector(
+          '[class*="title"], [class*="name"], [class*="course-title"], h2, h3, h4, span'
+        );
+        let name =
+          (el.getAttribute('aria-label') || '').trim() ||
+          (titleEl?.textContent || '').trim() ||
+          (el.textContent || '').trim();
+
+        name = name.replace(/\s+/g, ' ').substring(0, 120);
+        if (!name || name.length < 3) return;
+
+        this.addCourse(courses, seen, {
+          id: courseId,
+          name,
+          fullName: name,
+          url: href
+            ? (href.startsWith('http') ? href : window.location.origin + href)
+            : window.location.href,
+        }, courseColors);
+      });
+    },
+
+    scrapeCoursesFromLinks(courses, seen, courseColors) {
+      const linkSelectors = [
+        'a[href*="/ultra/course"]',
+        'a[href*="/ultra/courses"]',
+        'a[href*="ultra/courses"]',
+        'a[href*="course_id"]',
+        'a[href*="courseId"]',
+        'a[href*="/courses/"]',
+        '[class*="course-org-list"] a[href]',
+        '[class*="course-list"] a[href]',
+        '[class*="course-card"] a[href]',
+        'a[data-analytics-id*="course"]',
+        'bb-base-course-org-list a[href]',
+        '#module\\:_4_1 a[href]',
+        '.courseListing a[href]',
+        '#div_4_1 a[href]',
+        '.portletList-img a[href]',
+        '#content_listContainer a[href]',
+      ];
+
+      for (const sel of linkSelectors) {
+        try {
+          this.queryAllDeep(sel).forEach((el) => {
+            const href = el.getAttribute('href') || '';
+            if (!href || href === '#' || href.startsWith('javascript:')) return;
+
+            const text = (el.textContent || el.getAttribute('aria-label') || '').trim();
+            if (!text || text.length < 3) return;
+
+            const courseId = this.extractCourseId(href) || this.extractCourseIdFromText(text);
+            if (!courseId) return;
+
+            this.addCourse(courses, seen, {
+              id: courseId,
+              name: text.substring(0, 120),
+              fullName: text,
+              url: href.startsWith('http') ? href : window.location.origin + href,
+            }, courseColors);
+          });
+        } catch (_) {}
+      }
+    },
+
+    scrapeCoursesFromCards(courses, seen, courseColors) {
+      const cardSelectors = [
+        '[class*="course-card"]',
+        '[class*="CourseCard"]',
+        '[class*="course-tile"]',
+        '[class*="courseTile"]',
+        '[role="listitem"]',
+        'li[class*="course"]',
+      ];
+
+      for (const sel of cardSelectors) {
+        this.queryAllDeep(sel).forEach((card) => {
+          const dataId =
+            card.getAttribute('data-course-id') ||
+            card.closest('[data-course-id]')?.getAttribute('data-course-id');
+          const link = card.querySelector('a[href]') || (card.tagName === 'A' ? card : null);
+          const href = link?.getAttribute('href') || '';
+          const titleEl = card.querySelector(
+            '[class*="title"], [class*="name"], h2, h3, h4, strong'
+          );
+          let name =
+            (card.getAttribute('aria-label') || '').trim() ||
+            (titleEl?.textContent || '').trim() ||
+            (link?.textContent || '').trim() ||
+            (card.textContent || '').trim();
+
+          name = name.replace(/\s+/g, ' ').substring(0, 120);
+          if (!name || name.length < 5) return;
+
+          const courseId =
+            dataId ||
+            (href ? this.extractCourseId(href) : null) ||
+            this.extractCourseIdFromText(name);
+          if (!courseId) return;
+
+          this.addCourse(courses, seen, {
+            id: courseId,
+            name,
+            fullName: name,
+            url: href
+              ? (href.startsWith('http') ? href : window.location.origin + href)
+              : window.location.href,
+          }, courseColors);
+        });
+      }
+    },
+
     scrapeCourses() {
       const courses = [];
       const courseColors = ['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
       const seen = new Set();
 
-      // --- Blackboard Ultra selectors ---
-      // Course cards on Ultra dashboard / course list
-      const ultraSelectors = [
-        'a[href*="/ultra/courses"]',
-        'a[href*="/ultra/course"]',
-        'a[href*="ultra/courses"]',
-        '[class*="course-org-list"] a',
-        '[class*="course-list"] a',
-        'div[data-course-id]',
-        'a[data-analytics-id*="course"]',
-        'bb-base-course-org-list a',
-      ];
+      this.scrapeCoursesFromDataAttributes(courses, seen, courseColors);
+      this.scrapeCoursesFromLinks(courses, seen, courseColors);
+      this.scrapeCoursesFromCards(courses, seen, courseColors);
 
-      // --- Blackboard Classic selectors ---
-      const classicSelectors = [
-        'a[href*="course_id"]',
-        '#module\\:_4_1 a',
-        '.courseListing a',
-        '#div_4_1 a',
-        '.portletList-img a',
-      ];
-
-      const allSelectors = [...ultraSelectors, ...classicSelectors];
-
-      for (const sel of allSelectors) {
-        try {
-          const els = document.querySelectorAll(sel);
-          els.forEach(el => {
-            const text = (el.textContent || '').trim();
-            if (!text || text.length < 5) return;
-            const href = el.getAttribute('href') || '';
-            if (!href) return;
-
-            const key = href + '|' + text.substring(0, 40);
-            if (seen.has(key)) return;
-            seen.add(key);
-
-            const courseId = this.extractCourseId(href);
-            if (!courseId) return;
-
-            courses.push({
-              id: courseId,
-              name: this.cleanCourseName(text),
-              fullName: text,
-              url: href.startsWith('http') ? href : window.location.origin + href,
-              color: courseColors[courses.length % courseColors.length],
-              currentGrade: null,
-            });
-          });
-        } catch (_) {}
-      }
-
-      // Fallback: scan the full page text for course-number patterns
       if (courses.length === 0) {
         courses.push(...this.scrapeCoursesFromText());
       }
@@ -295,34 +432,41 @@
     scrapeCoursesFromText() {
       const courses = [];
       const courseColors = ['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-      const body = document.body.innerText;
-
-      // Match patterns like "CS 3345.501 - Data Structures and Foundations of Algo"
-      // or "2262-UTDAL-CS-3345-SEC501-23678"
-      const patterns = [
-        /([A-Z]{2,4}\s*\d{4}(?:\.\d{3})?)\s*[-–:]\s*(.+)/g,
-        /\d{4}-\w+-([A-Z]{2,4})-(\d{4})-\w+-\d+\s*\n?\s*([A-Z]{2,4}\s+\d{4}\.\d{3}\s*[-–]\s*.+)/g,
-      ];
-
       const seen = new Set();
+
+      const sources = [
+        document.body.innerText,
+        ...this.queryAllDeep('[class*="course"]').map((el) => el.innerText || ''),
+      ].join('\n');
+
+      const patterns = [
+        /([A-Z]{2,5}\s*\d{4}(?:\.\d{3})?)\s*[-–:]\s*(.{3,80})/g,
+        /([A-Z]{2,5}\s*\d{4}(?:\.\d{3})?)\s+([A-Za-z][^\n]{3,80})/g,
+        /\d{4}-\w+-([A-Z]{2,5})-(\d{4})-\w+-\d+\s*\n?\s*([A-Z]{2,5}\s+\d{4}(?:\.\d{3})?\s*[-–]\s*.+)/g,
+      ];
 
       for (const pat of patterns) {
         let m;
-        while ((m = pat.exec(body)) !== null) {
+        while ((m = pat.exec(sources)) !== null) {
           let name;
           if (m[3]) {
             name = m[3].trim();
+          } else if (m[2] && !/^\d/.test(m[2])) {
+            name = (m[1] + ' - ' + m[2]).trim();
           } else {
             name = (m[1] + ' - ' + m[2]).trim();
           }
 
-          const shortName = name.substring(0, 60);
-          if (seen.has(shortName)) continue;
-          seen.add(shortName);
+          if (name.length < 5 || /^(Courses|Activity|Grades|Calendar)$/i.test(name)) continue;
 
-          const idPart = (m[1] || m[3] || '').replace(/\s+/g, '');
+          const shortName = name.substring(0, 80);
+          const key = shortName.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+
+          const idPart = (m[1] || '').replace(/\s+/g, '') || `text_${courses.length}`;
           courses.push({
-            id: 'course_' + idPart + '_' + courses.length,
+            id: 'course_' + idPart,
             name: this.cleanCourseName(shortName),
             fullName: name,
             url: window.location.href,
@@ -332,17 +476,17 @@
         }
       }
 
-      // Also look for course headings in the Grades page
-      const headings = document.querySelectorAll('h1, h2, h3, h4, [class*="heading"], [class*="title"]');
-      headings.forEach(el => {
-        const text = el.textContent.trim();
-        const match = text.match(/([A-Z]{2,4}\s*\d{4}(?:\.\d{3})?)\s*[-–:]\s*(.+)/);
+      const headings = this.queryAllDeep('h1, h2, h3, h4, [class*="heading"], [class*="title"]');
+      headings.forEach((el) => {
+        const text = (el.textContent || '').trim();
+        const match = text.match(/([A-Z]{2,5}\s*\d{4}(?:\.\d{3})?)\s*[-–:]\s*(.+)/);
         if (match) {
-          const name = match[0].substring(0, 60);
-          if (!seen.has(name)) {
-            seen.add(name);
+          const name = match[0].substring(0, 80);
+          const key = name.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
             courses.push({
-              id: 'course_' + match[1].replace(/\s+/g, '') + '_' + courses.length,
+              id: 'course_' + match[1].replace(/\s+/g, ''),
               name: this.cleanCourseName(name),
               fullName: match[0],
               url: window.location.href,
@@ -545,16 +689,28 @@
     },
 
     extractCourseId(href) {
+      if (!href) return null;
       const patterns = [
-        /course_id=(_\d+_\d+)/,
-        /ultra\/courses\/([^/\s?]+)/,
-        /courses\/([^/\s?]+)/,
-        /courseId=([^&\s]+)/,
+        /course_id=(_\d+_\d+)/i,
+        /course_id%3D(_\d+_\d+)/i,
+        /ultra\/course\/(_\d+_\d+)/i,
+        /ultra\/courses\/([^/\s?#]+)/i,
+        /\/courses\/([^/\s?#]+)/i,
+        /courseId=([^&\s#]+)/i,
+        /contextId=(_\d+_\d+)/i,
       ];
       for (const p of patterns) {
         const m = href.match(p);
-        if (m) return m[1];
+        if (m) return decodeURIComponent(m[1]);
       }
+      return null;
+    },
+
+    extractCourseIdFromText(text) {
+      const bbId = text.match(/(_\d+_\d+)/);
+      if (bbId) return bbId[1];
+      const code = text.match(/([A-Z]{2,5}\s*\d{4}(?:\.\d{3})?)/);
+      if (code) return 'course_' + code[1].replace(/\s+/g, '');
       return null;
     },
 

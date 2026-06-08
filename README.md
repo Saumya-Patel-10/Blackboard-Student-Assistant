@@ -13,6 +13,19 @@ A **Chrome extension** that helps students stay on top of **Blackboard** (Learn 
 
 ---
 
+## Download (install without Git)
+
+**Latest release (v1.4.0)** — includes UI refresh, Study Plan removed, and improved Blackboard Ultra course scanning:
+
+[Download Blackboard-Student-Assistant-v1.4.0.zip](https://github.com/Saumya-Patel-10/Blackboard-Student-Assistant/raw/cursor/remove-study-plan-ui-6fe7/releases/Blackboard-Student-Assistant-v1.4.0.zip)
+
+1. Download and unzip the file.
+2. Chrome → `chrome://extensions` → **Developer mode** → **Load unpacked** → select the **`extension`** folder inside the zip.
+3. **Reload** the extension after each update (click Reload on `chrome://extensions`).
+4. Open Blackboard on your **Courses list** page (where you see all courses), then click the extension **refresh** button.
+
+---
+
 ## Installation (development)
 
 1. Clone this repository.
@@ -44,8 +57,8 @@ The extension uses **OAuth2** with the `calendar.events` scope. For **Chrome ext
 
 ## How to use
 
-1. **Sign in to Blackboard** in a normal tab. Visit course lists, the activity stream, or the **Grades** page.
-2. Open the extension popup and use **refresh** to scan the **active tab**, or rely on automatic scans if configured.
+1. **Sign in to Blackboard** and open your **Courses** page (the list showing all enrolled courses — not inside a single course).
+2. Open the extension popup and click **refresh** to scan that tab. If you see 0 courses, reload the Blackboard tab once, wait for the course cards to appear, then scan again.
 3. **Upload Syllabus** — Pick a course, add file or paste text (or image with Gemini), then **Parse Syllabus**.
 4. **Calculate Grades** — Choose a course, optionally set a **target %** (prompted once when you first have data), then **Fill from Blackboard grades (AI)** with the Grades page visible if you use screen capture.
 5. **Sync Calendar** — Select deadlines and sync; repeat safely — existing events are **updated** by sync id.

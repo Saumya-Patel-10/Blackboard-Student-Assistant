@@ -1550,7 +1550,7 @@
       populateManageDeadlinesPanel();
 
       st.className = 'syllabus-status success';
-      st.textContent = 'Rescan complete. Review your deadlines below.';
+      st.textContent = `Rescan complete — ${appState.courses.length} course(s), ${appState.assignments.length} item(s).`;
     } catch (e) {
       st.className = 'syllabus-status error';
       st.textContent =
@@ -1705,25 +1705,48 @@
     const dot = $('#status-dot');
     const text = $('#status-text');
     dot.className = 'status-dot scanning';
-    text.textContent = 'Scanning...';
+    text.textContent = 'Scanning Blackboard tab...';
 
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const savedUrl = appState.settings?.blackboardUrl || appState.blackboardUrl || '';
 
-      if (tab && (isBlackboardUrl(tab.url) || (savedUrl && tab.url?.startsWith(savedUrl)))) {
-        chrome.tabs.sendMessage(tab.id, { action: 'scan' }, async () => {
-          await new Promise(r => setTimeout(r, 2500));
-          await loadData();
-          render();
-        });
-      } else {
-        text.textContent = 'Navigate to Blackboard first';
+      if (!tab?.id) {
+        text.textContent = 'No active tab found';
         dot.className = 'status-dot disconnected';
-        setTimeout(updateStatusBar, 3000);
+        return;
+      }
+
+      if (!(isBlackboardUrl(tab.url) || (savedUrl && tab.url?.startsWith(savedUrl)))) {
+        text.textContent = 'Open your Blackboard Courses page, then scan again';
+        dot.className = 'status-dot disconnected';
+        setTimeout(updateStatusBar, 4000);
+        return;
+      }
+
+      const response = await chrome.tabs.sendMessage(tab.id, { action: 'scan' }).catch(() => null);
+
+      if (!response?.success) {
+        text.textContent = 'Scan failed — reload the Blackboard tab, then try again';
+        dot.className = 'status-dot disconnected';
+        setTimeout(updateStatusBar, 5000);
+        return;
+      }
+
+      await loadData();
+      render();
+      updateStatusBar();
+
+      const n = appState.courses.length;
+      if (n === 0) {
+        text.textContent = '0 courses found — stay on the Courses list page and scan again';
+        dot.className = 'status-dot disconnected';
+      } else {
+        text.textContent = `Connected · ${n} course${n === 1 ? '' : 's'} found`;
+        dot.className = 'status-dot';
       }
     } catch {
-      text.textContent = 'Could not connect to Blackboard tab';
+      text.textContent = 'Could not connect — reload Blackboard tab and extension';
       dot.className = 'status-dot disconnected';
     }
   }
