@@ -119,10 +119,11 @@
       for (const c of oldCourses) {
         if (c?.id) courseById.set(c.id, c);
       }
-      for (const c of fresh.courses) {
+      for (const c of this.filterActiveCourses(fresh.courses)) {
         if (c?.id && !courseById.has(c.id)) courseById.set(c.id, c);
       }
-      const courses = Array.from(courseById.values());
+
+      const courses = this.filterActiveCourses(Array.from(courseById.values()));
 
       const assignmentKey = (a) =>
         `${a.courseId || ''}|${(a.title || '').trim().toLowerCase().substring(0, 120)}`;
@@ -278,14 +279,65 @@
       return probes.some((sel) => this.queryAllDeep(sel).length > 0);
     },
 
+    isClosedCourse(course) {
+      const name = (course?.name || course?.fullName || '').replace(/\s+/g, ' ').trim();
+      if (!name) return true;
+      if (/^closed$/i.test(name)) return true;
+      if (/^unavailable$/i.test(name)) return true;
+      if (/^archived$/i.test(name)) return true;
+      // Status-only label with no course code (e.g. "Closed · Spring 2024")
+      if (/^closed\b/i.test(name) && !/[A-Z]{2,5}\s*\d{3,4}/i.test(name)) return true;
+      return false;
+    },
+
+    isClosedCourseElement(el) {
+      if (!el) return false;
+      if (el.getAttribute('aria-disabled') === 'true') return true;
+
+      const label = (el.getAttribute('aria-label') || '').trim();
+      if (label && /^closed\b/i.test(label) && !/[A-Z]{2,5}\s*\d{3,4}/i.test(label)) {
+        return true;
+      }
+
+      const cls = (el.className || '').toString().toLowerCase();
+      if (/\bclosed\b/.test(cls) || /\bunavailable\b/.test(cls) || /\barchived\b/.test(cls)) {
+        const titleEl = el.querySelector('[class*="title"], [class*="name"], h2, h3, h4');
+        const title = (titleEl?.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!title || this.isClosedCourse({ name: title })) return true;
+      }
+
+      const statusEl = el.querySelector(
+        '[class*="status"], [class*="badge"], [class*="label"], [class*="state"]'
+      );
+      if (statusEl && /^closed$/i.test((statusEl.textContent || '').trim())) {
+        const titleEl = el.querySelector('[class*="title"], [class*="name"], h2, h3, h4');
+        const title = (titleEl?.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!title || /^closed$/i.test(title)) return true;
+      }
+
+      const compact = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (/^closed$/i.test(compact)) return true;
+
+      return false;
+    },
+
+    filterActiveCourses(courses) {
+      return (courses || []).filter((c) => !this.isClosedCourse(c));
+    },
+
     addCourse(courses, seen, course, courseColors) {
       if (!course?.id || !course?.name) return;
-      const key = `${course.id}|${course.name.substring(0, 60).toLowerCase()}`;
+      if (this.isClosedCourse(course)) return;
+
+      const cleaned = this.cleanCourseName(course.name);
+      if (this.isClosedCourse({ name: cleaned })) return;
+
+      const key = `${course.id}|${cleaned.substring(0, 60).toLowerCase()}`;
       if (seen.has(key)) return;
       seen.add(key);
       courses.push({
         id: course.id,
-        name: this.cleanCourseName(course.name),
+        name: cleaned,
         fullName: course.fullName || course.name,
         url: course.url || window.location.href,
         color: courseColors[courses.length % courseColors.length],
@@ -296,6 +348,8 @@
     scrapeCoursesFromDataAttributes(courses, seen, courseColors) {
       const attrEls = this.queryAllDeep('[data-course-id]');
       attrEls.forEach((el) => {
+        if (this.isClosedCourseElement(el)) return;
+
         const courseId = (el.getAttribute('data-course-id') || '').trim();
         if (!courseId) return;
 
@@ -346,6 +400,8 @@
       for (const sel of linkSelectors) {
         try {
           this.queryAllDeep(sel).forEach((el) => {
+            if (this.isClosedCourseElement(el)) return;
+
             const href = el.getAttribute('href') || '';
             if (!href || href === '#' || href.startsWith('javascript:')) return;
 
@@ -378,6 +434,8 @@
 
       for (const sel of cardSelectors) {
         this.queryAllDeep(sel).forEach((card) => {
+          if (this.isClosedCourseElement(card)) return;
+
           const dataId =
             card.getAttribute('data-course-id') ||
             card.closest('[data-course-id]')?.getAttribute('data-course-id');
@@ -426,7 +484,7 @@
         courses.push(...this.scrapeCoursesFromText());
       }
 
-      return courses;
+      return this.filterActiveCourses(courses);
     },
 
     scrapeCoursesFromText() {

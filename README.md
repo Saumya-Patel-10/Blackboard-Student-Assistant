@@ -15,9 +15,9 @@ A **Chrome extension** that helps students stay on top of **Blackboard** (Learn 
 
 ## Download (install without Git)
 
-**Latest release (v1.4.0)** — includes UI refresh, Study Plan removed, and improved Blackboard Ultra course scanning:
+**Latest release (v1.4.1)** — UI refresh, improved Ultra scanning, and **closed courses excluded**:
 
-[Download Blackboard-Student-Assistant-v1.4.0.zip](https://github.com/Saumya-Patel-10/Blackboard-Student-Assistant/raw/cursor/remove-study-plan-ui-6fe7/releases/Blackboard-Student-Assistant-v1.4.0.zip)
+[Download Blackboard-Student-Assistant-v1.4.1.zip](https://github.com/Saumya-Patel-10/Blackboard-Student-Assistant/raw/cursor/remove-study-plan-ui-6fe7/releases/Blackboard-Student-Assistant-v1.4.1.zip)
 
 1. Download and unzip the file.
 2. Chrome → `chrome://extensions` → **Developer mode** → **Load unpacked** → select the **`extension`** folder inside the zip.

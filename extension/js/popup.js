@@ -49,6 +49,9 @@
     ]);
     Object.assign(appState, data);
     if (!appState.settings) appState.settings = {};
+    if (appState.courses?.length) {
+      appState.courses = appState.courses.filter((c) => !isClosedCourseName(c?.name || c?.fullName));
+    }
     if (appState.assignments?.length) {
       appState.assignments = dedupeAssignmentsForState(appState.assignments);
     }
@@ -1757,6 +1760,16 @@
   }
 
   // === Utilities ===
+
+  function isClosedCourseName(name) {
+    const n = String(name || '').replace(/\s+/g, ' ').trim();
+    if (!n) return true;
+    if (/^closed$/i.test(n)) return true;
+    if (/^unavailable$/i.test(n)) return true;
+    if (/^archived$/i.test(n)) return true;
+    if (/^closed\b/i.test(n) && !/[A-Z]{2,5}\s*\d{3,4}/i.test(n)) return true;
+    return false;
+  }
 
   function formatDeadline(date, hoursUntil) {
     if (hoursUntil < 1) return `Due in ${Math.round(hoursUntil * 60)} min`;
