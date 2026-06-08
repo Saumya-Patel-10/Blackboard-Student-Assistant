@@ -32,10 +32,8 @@
     assignments: [],
     grades: [],
     syllabusData: {},
-    courseGoals: {},
     settings: {},
     lastScan: null,
-    studyPlanProgress: {},
   };
 
   async function init() {
@@ -47,7 +45,7 @@
   async function loadData() {
     const data = await chrome.storage.local.get([
       'courses', 'assignments', 'grades', 'syllabusData',
-      'courseGoals', 'settings', 'lastScan', 'studyPlanProgress'
+      'settings', 'lastScan'
     ]);
     Object.assign(appState, data);
     if (!appState.settings) appState.settings = {};
@@ -244,7 +242,6 @@
     // Quick actions
     $('#btn-grades').addEventListener('click', () => openPanel('grades'));
     $('#btn-calendar').addEventListener('click', () => openPanel('calendar'));
-    $('#btn-plan').addEventListener('click', () => openPanel('plan'));
     $('#btn-syllabus').addEventListener('click', () => openPanel('syllabus'));
 
     // Panel close buttons
@@ -275,9 +272,6 @@
       btn.addEventListener('click', handleCalendarTab);
     });
     $('#btn-sync-selected').addEventListener('click', handleSyncCalendar);
-
-    // Study plan
-    $('#btn-generate-plan').addEventListener('click', handleGeneratePlan);
 
     // Syllabus
     $('#upload-zone').addEventListener('click', () => $('#syllabus-file').click());
@@ -337,7 +331,6 @@
 
     if (name === 'grades') populateGradePanel();
     if (name === 'calendar') populateCalendarPanel();
-    if (name === 'plan') populatePlanPanel();
     if (name === 'syllabus') populateSyllabusPanel();
     if (name === 'manage-deadlines') populateManageDeadlinesPanel();
   }
@@ -974,115 +967,6 @@
         }
       }
     );
-  }
-
-  // === Study Plan ===
-
-  function populatePlanPanel() {
-    const container = $('#course-goals');
-    container.innerHTML = appState.courses.map(c => {
-      const current = appState.courseGoals[c.id] || '';
-      return `
-        <div class="goal-input-group">
-          <span style="font-size: 13px; min-width: 100px; color: var(--text);">${escapeHtml(c.name)}</span>
-          <select class="goal-select" data-course-id="${c.id}">
-            <option value="" ${!current ? 'selected' : ''}>No goal</option>
-            <option value="90" ${current == 90 ? 'selected' : ''}>A (90%+)</option>
-            <option value="80" ${current == 80 ? 'selected' : ''}>B (80%+)</option>
-            <option value="70" ${current == 70 ? 'selected' : ''}>C (70%+)</option>
-            <option value="60" ${current == 60 ? 'selected' : ''}>D (60%+)</option>
-          </select>
-        </div>`;
-    }).join('');
-  }
-
-  async function handleGeneratePlan() {
-    const goals = {};
-    $$('.goal-select').forEach(sel => {
-      if (sel.value) goals[sel.dataset.courseId] = parseInt(sel.value);
-    });
-
-    appState.courseGoals = goals;
-    await chrome.storage.local.set({ courseGoals: goals });
-
-    const settings = appState.settings || {};
-
-    chrome.runtime.sendMessage({
-      action: 'generatePlan',
-      config: {
-        assignments: appState.assignments,
-        courses: appState.courses,
-        goals,
-        studyHoursPerDay: settings.studyHoursPerDay || 4,
-        studyDays: settings.studyDays || ['mon', 'tue', 'wed', 'thu', 'fri'],
-      }
-    }, (plan) => {
-      renderStudyPlan(plan);
-    });
-  }
-
-  function renderStudyPlan(plan) {
-    const container = $('#study-plan-output');
-
-    if (!plan || plan.weeks.length === 0) {
-      container.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-icon">📋</div>
-          <p>${plan?.summary || 'No tasks to plan.'}</p>
-        </div>`;
-      return;
-    }
-
-    let html = `<p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">${escapeHtml(plan.summary)}</p>`;
-
-    for (const week of plan.weeks) {
-      html += `
-        <div class="plan-week">
-          <div class="plan-week-header">
-            Week ${week.weekNumber}: ${week.label}
-            ${week.isOverloaded ? '<span style="color: var(--warning);"> ⚠️ Heavy</span>' : ''}
-          </div>`;
-
-      for (const task of week.tasks) {
-        const isCompleted = appState.studyPlanProgress[task.id];
-        html += `
-          <div class="plan-task">
-            <div class="plan-checkbox ${isCompleted ? 'checked' : ''}" data-task-id="${task.id}"></div>
-            <div class="plan-task-info">
-              <div class="plan-task-name ${isCompleted ? 'completed' : ''}">${escapeHtml(task.title)}</div>
-              <div class="plan-task-detail">
-                ${escapeHtml(task.course)} · ${task.type} · ~${task.estimatedHours}h
-                · Due ${formatDate(new Date(task.dueDate))}
-              </div>
-            </div>
-          </div>`;
-      }
-
-      html += `
-          <div class="progress-bar">
-            <div class="progress-fill ${week.isOverloaded ? 'warning' : 'good'}"
-                 style="width: ${Math.min(100, (week.totalHoursNeeded / week.totalAvailableHours) * 100)}%">
-            </div>
-          </div>
-          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
-            ${week.totalHoursNeeded.toFixed(1)}h planned / ${week.totalAvailableHours}h available
-          </div>
-        </div>`;
-    }
-
-    container.innerHTML = html;
-
-    container.querySelectorAll('.plan-checkbox').forEach(cb => {
-      cb.addEventListener('click', async () => {
-        const taskId = cb.dataset.taskId;
-        const isChecked = cb.classList.toggle('checked');
-        const taskName = cb.nextElementSibling.querySelector('.plan-task-name');
-        taskName.classList.toggle('completed', isChecked);
-
-        appState.studyPlanProgress[taskId] = isChecked;
-        await chrome.storage.local.set({ studyPlanProgress: appState.studyPlanProgress });
-      });
-    });
   }
 
   // === Syllabus ===

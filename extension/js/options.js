@@ -44,19 +44,10 @@
       const autoCal = $('#opt-auto-sync-cal');
       if (autoCal && settings.autoSyncCalendar !== undefined) autoCal.checked = settings.autoSyncCalendar;
 
-      const studyH = $('#opt-study-hours');
-      if (studyH && settings.studyHoursPerDay) studyH.value = String(settings.studyHoursPerDay);
-
       const gemK = $('#opt-gemini-key');
       if (gemK && settings.geminiApiKey) gemK.value = settings.geminiApiKey;
       const gemM = $('#opt-gemini-model');
       if (gemM && settings.geminiModel) gemM.value = settings.geminiModel;
-
-      if (settings.studyDays) {
-        $$('.day-btn').forEach(btn => {
-          btn.classList.toggle('active', settings.studyDays.includes(btn.dataset.day));
-        });
-      }
 
       await checkCalendarStatus();
       bindEvents();
@@ -79,16 +70,10 @@
     onClick('#btn-export', exportData);
     onClick('#btn-clear-data', clearData);
 
-    $$('.day-btn').forEach(btn => {
-      btn.addEventListener('click', () => btn.classList.toggle('active'));
-    });
   }
 
   async function saveSettings() {
     const prev = (await chrome.storage.local.get('settings')).settings || {};
-
-    const studyDays = [];
-    $$('.day-btn.active').forEach(btn => studyDays.push(btn.dataset.day));
 
     const elBb = $('#opt-bb-url');
     const elAuto = $('#opt-auto-scan');
@@ -97,11 +82,10 @@
     const elAdv = $('#opt-notif-advance');
     const elDaily = $('#opt-daily-summary');
     const elCal = $('#opt-auto-sync-cal');
-    const elStudy = $('#opt-study-hours');
     const elGemK = $('#opt-gemini-key');
     const elGemM = $('#opt-gemini-model');
 
-    if (!elBb || !elAuto || !elFreq || !elNotif || !elAdv || !elDaily || !elCal || !elStudy) {
+    if (!elBb || !elAuto || !elFreq || !elNotif || !elAdv || !elDaily || !elCal) {
       alert('Settings page is incomplete. Reload the extension (chrome://extensions → Reload) so options.html matches the latest version.');
       return;
     }
@@ -117,8 +101,6 @@
       notifyAdvance: parseInt(elAdv.value, 10) || 24,
       dailySummary: elDaily.checked,
       autoSyncCalendar: elCal.checked,
-      studyHoursPerDay: parseInt(elStudy.value, 10) || 4,
-      studyDays,
       geminiApiKey: newGemKey || prev.geminiApiKey || '',
       geminiModel: newGemModel || prev.geminiModel || '',
     };
@@ -264,8 +246,6 @@
         notifyAdvance: 24,
         dailySummary: true,
         autoSyncCalendar: false,
-        studyHoursPerDay: 4,
-        studyDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
         geminiApiKey: '',
         geminiModel: '',
       },

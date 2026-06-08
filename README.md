@@ -10,7 +10,6 @@ A **Chrome extension** that helps students stay on top of **Blackboard** (Learn 
 - **Grade calculator** — Combines syllabus **category weights** with grades scraped from Blackboard. With a **Gemini API key**, the extension sends grade lines to the model in a fixed format (`HW1 - 9/10 HW2 - 10/10`) and can use a **screenshot of the active tab** so category averages align with what you see on screen.
 - **Syllabus intelligence** — Upload **PDF**, **DOCX**, or **plain text**, or attach a **screenshot** of the syllabus. Local heuristics run first; **Gemini** fills gaps for messy PDFs, scans, and images when an API key is configured.
 - **Google Calendar** — Sync selected deadlines to your primary calendar. Events carry a **private sync id** so **re-syncing updates the same event** instead of creating duplicates.
-- **Study planner** — Builds a simple weekly plan from deadlines and your stated study availability (configured in options).
 
 ---
 

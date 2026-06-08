@@ -153,33 +153,6 @@
       </div>
     </div>
 
-    <!-- Study Plan -->
-    <div class="options-section">
-      <h2>📋 Study Plan Preferences</h2>
-      <div class="option-row">
-        <div class="option-info">
-          <div class="option-label">Study Hours Per Day</div>
-          <div class="option-desc">Maximum study hours you want planned per day</div>
-        </div>
-        <input type="number" id="opt-study-hours" value="4" min="1" max="16" style="width: 60px;">
-      </div>
-      <div class="option-row">
-        <div class="option-info">
-          <div class="option-label">Preferred Study Days</div>
-          <div class="option-desc">Select your preferred study days</div>
-        </div>
-        <div style="display: flex; gap: 4px;">
-          <button class="day-btn active" data-day="mon">M</button>
-          <button class="day-btn active" data-day="tue">T</button>
-          <button class="day-btn active" data-day="wed">W</button>
-          <button class="day-btn active" data-day="thu">T</button>
-          <button class="day-btn active" data-day="fri">F</button>
-          <button class="day-btn" data-day="sat">S</button>
-          <button class="day-btn" data-day="sun">S</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Data Management -->
     <div class="options-section">
       <h2>🗑️ Data Management</h2>
@@ -239,23 +212,6 @@
     }
     .btn-inline-copy:hover {
       border-color: var(--primary);
-    }
-    .day-btn {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      border: 1px solid var(--border);
-      background: var(--bg-input);
-      color: var(--text-muted);
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .day-btn.active {
-      background: var(--primary);
-      border-color: var(--primary);
-      color: white;
     }
   </style>
 
