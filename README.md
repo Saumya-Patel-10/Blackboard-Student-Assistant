@@ -54,17 +54,17 @@ The extension uses **OAuth2** with the `calendar.events` scope. For **Chrome ext
 
 1. **Sign in to Blackboard** and open your **Courses** page (the list showing all enrolled courses — not inside a single course).
 2. Open the extension popup and click **refresh** to scan that tab. If you see 0 courses, reload the Blackboard tab once, wait for the course cards to appear, then scan again.
-3. **Upload Syllabus** — Pick a course, add file or paste text (or image with Gemini), then **Parse Syllabus**.
-4. **Calculate Grades** — Choose a course, optionally set a **target %** (prompted once when you first have data), then **Fill from Blackboard grades (AI)** with the Grades page visible if you use screen capture.
-5. **Sync Calendar** — Select deadlines and sync; repeat safely — existing events are **updated** by sync id.
+3. **Upload Syllabus** — Pick a course, add file or paste text, then **Parse Syllabus** and confirm grading weights.
+4. **Calculate Grades** — Choose a course, then **Fill from Blackboard (match names)** after scanning the Grades page (no API key).
+5. **Sync Calendar** — Edit event names and dates, **Save**, then sync; existing events are **updated** by sync id.
 
 ---
 
 ## Privacy and security
 
-- **Blackboard data** is processed locally in the browser except when you **opt in** to Gemini (syllabus or grade inference) or **Google Calendar** (events API).
-- **Gemini** requests include syllabus text and/or images you provide, formatted grade strings, and optionally a **JPEG capture of the visible tab** when you enable that option.
-- Review [Google’s AI terms](https://ai.google.dev/terms) and your institution’s policies before use.
+- **Blackboard data**, syllabus text, and grades are processed **locally** in your browser.
+- **Google Calendar** receives only events you choose to sync.
+- Review your institution’s policies before use.
 
 ---
 
@@ -74,7 +74,6 @@ The extension uses **OAuth2** with the `calendar.events` scope. For **Chrome ext
 - **Content scripts** for DOM scraping on Blackboard / Canvas-style hosts allowed in `manifest.json`
 - **pdf.js** and **mammoth** (bundled) for PDF/DOCX text extraction
 - **Google Calendar REST API** with `extendedProperties.private` for deduplication
-- **Gemini** `generateContent` (REST) for structured JSON extraction
 
 ---
 
