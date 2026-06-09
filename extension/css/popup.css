@@ -895,6 +895,20 @@ body::-webkit-scrollbar-thumb {
   font-size: 13px;
   font-weight: 600;
 }
+
+.cal-field-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: block;
+}
+
+.cal-scanned-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  font-style: italic;
+  line-height: 1.35;
+}
 .event-preview .event-date {
   font-size: 12px;
   color: var(--text-muted);

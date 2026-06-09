@@ -285,8 +285,12 @@ const CalendarIntegration = {
   },
 
   assignmentToEvent(assignment, courseName) {
+    const displayTitle =
+      (assignment.calendarTitle || '').trim() ||
+      ((assignment.title && !/^due\s*date:/i.test(assignment.title)) ? assignment.title : '') ||
+      (courseName ? `${courseName} — Assignment` : 'Assignment');
     return {
-      title: `📝 ${assignment.title}`,
+      title: `📝 ${displayTitle}`,
       course: courseName,
       type: assignment.type,
       startDate: assignment.dueDate,

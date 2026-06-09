@@ -138,6 +138,7 @@
           const oldA = userOverrideByKey.get(k);
           const merged = { ...freshA, id: oldA.id || freshA.id };
           if (oldA.dueDateOverride) merged.dueDateOverride = oldA.dueDateOverride;
+          if (oldA.calendarTitle) merged.calendarTitle = oldA.calendarTitle;
           if (oldA.userEdited) {
             merged.dueDate = oldA.dueDate;
             merged.dueDateRaw = oldA.dueDateRaw;

@@ -87,6 +87,8 @@
       };
       const ov = prefer.dueDateOverride || other.dueDateOverride;
       if (ov) merged.dueDateOverride = ov;
+      const calTitle = prefer.calendarTitle || other.calendarTitle;
+      if (calTitle) merged.calendarTitle = calTitle;
       map.set(k, merged);
     }
     return Array.from(map.values());
@@ -673,6 +675,22 @@
 
   // === Calendar ===
 
+  function calendarEventTitle(assignment) {
+    const custom = (assignment?.calendarTitle || '').trim();
+    if (custom) return custom;
+    const scanned = (assignment?.title || '').trim();
+    if (scanned && !/^due\s*date:/i.test(scanned)) return scanned;
+    const course = appState.courses.find((c) => c.id === assignment?.courseId);
+    return course ? `${course.name} — Assignment` : 'Assignment';
+  }
+
+  function calendarExamTitle(exam) {
+    const custom = (exam?.calendarTitle || '').trim();
+    if (custom) return custom;
+    const base = [exam?.type, exam?.courseName].filter(Boolean).join(' — ');
+    return base || 'Exam';
+  }
+
   function populateCalendarPanel() {
     renderCalendarEvents('cal-deadlines');
   }
@@ -701,26 +719,35 @@
 
       container.innerHTML =
         `<p class="cal-panel-hint" style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">` +
-        `Adjust the date and time below, then <strong>Save due date</strong> before syncing. Past dates are included if you still want them on your calendar.</p>` +
+        `Edit the <strong>event name</strong> and <strong>date/time</strong> below, then click <strong>Save</strong> before syncing to Google Calendar.</p>` +
         deadlines
           .map((a, i) => {
             const course = appState.courses.find((c) => c.id === a.courseId);
             const due = effectiveDueDate(a);
             const localVal = isoToDatetimeLocalValue(due);
+            const eventTitle = calendarEventTitle(a);
+            const scannedHint =
+              a.title && a.title !== eventTitle && /^due\s*date:/i.test(a.title)
+                ? `<div class="cal-scanned-hint">Scanned as: ${escapeHtml(a.title)}</div>`
+                : '';
             return `
           <div class="event-preview cal-deadline-row" data-assignment-id="${escapeHtml(a.id)}">
             <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
               <input type="checkbox" checked class="cal-event-check" data-index="${i}" data-type="deadline"
                      style="margin-top: 3px;">
               <div style="flex: 1; min-width: 0;">
-                <div class="event-title">${escapeHtml(a.title)}</div>
                 <div class="event-date">${formatDateTime(new Date(due))}${course ? ` · ${escapeHtml(course.name)}` : ''}</div>
                 <span class="event-type ${a.type}">${escapeHtml(a.type || '')}</span>
+                ${scannedHint}
                 <div class="cal-due-edit" style="margin-top: 8px;">
-                  <span style="font-size: 11px; color: var(--text-muted);">Date &amp; time for Google Calendar</span>
+                  <span class="cal-field-label">Event name for Google Calendar</span>
+                  <input type="text" class="cal-title-input" data-aid="${escapeHtml(a.id)}" value="${escapeHtml(eventTitle)}"
+                    placeholder="e.g. HW 5 — Data Structures"
+                    style="width: 100%; margin-top: 4px; padding: 6px 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-size: 12px;">
+                  <span class="cal-field-label" style="margin-top: 8px; display: block;">Date &amp; time for Google Calendar</span>
                   <input type="datetime-local" class="cal-due-input" data-aid="${escapeHtml(a.id)}" value="${localVal}"
                     style="width: 100%; margin-top: 4px; padding: 6px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-size: 12px;">
-                  <button type="button" class="btn-sm-inline cal-save-due" data-aid="${escapeHtml(a.id)}" style="margin-top: 6px;">Save due date</button>
+                  <button type="button" class="btn-sm-inline cal-save-due" data-aid="${escapeHtml(a.id)}" style="margin-top: 8px;">Save</button>
                 </div>
               </div>
             </label>
@@ -729,7 +756,7 @@
           .join('');
 
       container.querySelectorAll('.cal-save-due').forEach((btn) => {
-        btn.addEventListener('click', () => saveCalendarDueOverride(btn.dataset.aid));
+        btn.addEventListener('click', () => saveCalendarDeadlineRow(btn.dataset.aid));
       });
     } else if (tab === 'cal-exams') {
       mergeManualExamsIntoSyllabusData();
@@ -757,27 +784,31 @@
 
       container.innerHTML =
         `<p class="cal-panel-hint" style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">` +
-        `Set or fix the exam time below, then <strong>Save</strong>. Only exams with a saved date are synced.</p>` +
+        `Edit the <strong>event name</strong> and <strong>exam time</strong>, then <strong>Save</strong> before syncing.</p>` +
         allExams
           .map((exam, i) => {
             const iso = exam.date && !isNaN(new Date(exam.date).getTime()) ? exam.date : '';
             const localVal = isoToDatetimeLocalValue(iso);
             const aid = exam.assignmentId ? escapeHtml(exam.assignmentId) : '';
             const eidx = exam.assignmentId ? '' : String(exam._examIndex);
+            const eventTitle = calendarExamTitle(exam);
             return `
         <div class="event-preview cal-exam-row">
           <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
             <input type="checkbox" ${iso ? 'checked' : ''} class="cal-event-check" data-index="${i}" data-type="exam"
                    style="margin-top: 3px;">
             <div style="flex: 1; min-width: 0;">
-              <div class="event-title">${escapeHtml(exam.type)} — ${escapeHtml(exam.courseName)}</div>
-              <div class="event-date">${escapeHtml(exam.dateRaw || (iso ? formatDateTime(new Date(iso)) : 'No date — set below'))}</div>
+              <div class="event-date">${escapeHtml(exam.dateRaw || (iso ? formatDateTime(new Date(iso)) : 'No date — set below'))} · ${escapeHtml(exam.courseName)}</div>
               <span class="event-type exam">Exam</span>
               <div class="cal-due-edit" style="margin-top: 8px;">
-                <span style="font-size: 11px; color: var(--text-muted);">Exam date &amp; time</span>
+                <span class="cal-field-label">Event name for Google Calendar</span>
+                <input type="text" class="cal-exam-title-input" value="${escapeHtml(eventTitle)}"
+                  placeholder="e.g. Exam 2 — Software Engineering"
+                  style="width: 100%; margin-top: 4px; padding: 6px 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-size: 12px;">
+                <span class="cal-field-label" style="margin-top: 8px; display: block;">Exam date &amp; time</span>
                 <input type="datetime-local" class="cal-exam-datetime" value="${localVal}"
                   style="width: 100%; margin-top: 4px; padding: 6px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-size: 12px;">
-                <button type="button" class="btn-sm-inline cal-save-exam" data-assignment-id="${aid}" data-syllabus-exam-index="${eidx}" data-course-id="${escapeHtml(exam.courseId)}" style="margin-top: 6px;">Save</button>
+                <button type="button" class="btn-sm-inline cal-save-exam" data-assignment-id="${aid}" data-syllabus-exam-index="${eidx}" data-course-id="${escapeHtml(exam.courseId)}" style="margin-top: 8px;">Save</button>
               </div>
             </div>
           </label>
@@ -793,19 +824,27 @@
     }
   }
 
-  async function saveCalendarDueOverride(assignmentId) {
-    const input = [...document.querySelectorAll('input.cal-due-input')].find(
-      (el) => el.dataset.aid === assignmentId
-    );
-    const iso = datetimeLocalToIso(input?.value);
+  async function saveCalendarDeadlineRow(assignmentId) {
+    const row = document.querySelector(`.cal-deadline-row[data-assignment-id="${CSS.escape(assignmentId)}"]`);
+    const dateInput = row?.querySelector('input.cal-due-input');
+    const titleInput = row?.querySelector('input.cal-title-input');
+    const iso = datetimeLocalToIso(dateInput?.value);
+    const calendarTitle = (titleInput?.value || '').trim();
+
+    if (!calendarTitle) {
+      alert('Enter an event name for Google Calendar.');
+      return;
+    }
     if (!iso) {
       alert('Pick a valid date and time.');
       return;
     }
+
     const idx = appState.assignments.findIndex((a) => a.id === assignmentId);
     if (idx === -1) return;
     appState.assignments[idx] = {
       ...appState.assignments[idx],
+      calendarTitle,
       dueDateOverride: iso,
       userEdited: true,
     };
@@ -813,13 +852,20 @@
     const st = $('#calendar-status');
     st.classList.remove('hidden');
     st.style.color = 'var(--success)';
-    st.textContent = 'Due date saved for calendar.';
+    st.textContent = 'Event name and date saved for calendar.';
   }
 
   async function saveExamDateFromCalendarPanel(btn) {
     const row = btn.closest('.cal-exam-row');
     const input = row?.querySelector('input.cal-exam-datetime');
+    const titleInput = row?.querySelector('input.cal-exam-title-input');
     const iso = datetimeLocalToIso(input?.value);
+    const calendarTitle = (titleInput?.value || '').trim();
+
+    if (!calendarTitle) {
+      alert('Enter an event name for Google Calendar.');
+      return;
+    }
     if (!iso) {
       alert('Pick a valid date and time for this exam.');
       return;
@@ -833,6 +879,7 @@
       if (idx === -1) return;
       appState.assignments[idx] = {
         ...appState.assignments[idx],
+        calendarTitle,
         dueDate: iso,
         dueDateOverride: null,
         dateRaw: formatDateTime(new Date(iso)),
@@ -849,6 +896,7 @@
       }
       exams[ei] = {
         ...exams[ei],
+        calendarTitle,
         date: iso,
         dateRaw: formatDateTime(new Date(iso)),
       };
@@ -860,6 +908,7 @@
       const examRow = {
         id: examAsgId,
         title: exams[ei].type || 'Exam',
+        calendarTitle,
         dueDate: iso,
         type: 'exam',
         courseId,
@@ -880,7 +929,7 @@
     const st = $('#calendar-status');
     st.classList.remove('hidden');
     st.style.color = 'var(--success)';
-    st.textContent = 'Exam date saved.';
+    st.textContent = 'Exam name and date saved.';
     renderCalendarEvents('cal-exams');
   }
 
@@ -911,7 +960,7 @@
           const course = appState.courses.find((c) => c.id === a.courseId);
           const startDate = effectiveDueDate(a);
           const ev = {
-            title: `📝 ${a.title}`,
+            title: `📝 ${calendarEventTitle(a)}`,
             course: course?.name || '',
             type: a.type,
             startDate,
@@ -939,7 +988,7 @@
         if (!exam || !exam.date || isNaN(new Date(exam.date).getTime())) return;
         const startDate = exam.date;
         const ev = {
-          title: `📘 ${exam.type || 'Exam'}`,
+          title: `📘 ${calendarExamTitle(exam)}`,
           course: exam.courseName || '',
           type: 'exam',
           startDate,

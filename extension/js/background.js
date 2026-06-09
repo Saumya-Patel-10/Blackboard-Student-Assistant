@@ -198,8 +198,12 @@ async function maybeAutoSyncCalendar() {
   const seen = new Set();
   for (const a of deadlines) {
     const course = courses.find((c) => c.id === a.courseId);
+    const displayTitle =
+      (a.calendarTitle || '').trim() ||
+      ((a.title && !/^due\s*date:/i.test(a.title)) ? a.title : '') ||
+      (course?.name ? `${course.name} — Assignment` : 'Assignment');
     const ev = {
-      title: `📝 ${a.title}`,
+      title: `📝 ${displayTitle}`,
       course: course?.name || '',
       type: a.type,
       startDate: dueIsoForAssignment(a),
