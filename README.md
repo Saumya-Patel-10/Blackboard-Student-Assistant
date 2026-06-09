@@ -1,23 +1,25 @@
 # Blackboard Student Assistant
 
-A **Chrome extension** that helps students stay on top of **Blackboard** (Learn Ultra and classic): it scans open course pages for **deadlines**, **grades**, and **courses**, surfaces them in a compact popup, and adds optional **Google Calendar** sync and **AI-assisted** syllabus parsing via the **Google Gemini API**.
+A **Chrome extension** that helps students stay on top of **Blackboard** (Learn Ultra and classic): it scans open course pages for **deadlines**, **grades**, and **courses**, surfaces them in a compact popup, parses syllabi **locally**, and syncs deadlines to **Google Calendar**.
 
 ---
 
 ## Highlights
 
 - **Deadline awareness** — Aggregates upcoming work from the current Blackboard view, with optional browser notifications before due dates.
-- **Grade calculator** — Combines syllabus **category weights** with grades scraped from Blackboard. With a **Gemini API key**, the extension sends grade lines to the model in a fixed format (`HW1 - 9/10 HW2 - 10/10`) and can use a **screenshot of the active tab** so category averages align with what you see on screen.
-- **Syllabus intelligence** — Upload **PDF**, **DOCX**, or **plain text**, or attach a **screenshot** of the syllabus. Local heuristics run first; **Gemini** fills gaps for messy PDFs, scans, and images when an API key is configured.
+- **Grade calculator** — Combines syllabus **category weights** with grades scraped from Blackboard. **Fill from Blackboard** matches items to categories by name — no API key required.
+- **Syllabus intelligence** — Upload **PDF**, **DOCX**, or **plain text**. Parsing runs **locally** on your device; you confirm grading weights before the calculator uses them.
 - **Google Calendar** — Sync selected deadlines to your primary calendar. Events carry a **private sync id** so **re-syncing updates the same event** instead of creating duplicates.
 
 ---
 
 ## Download (install without Git)
 
-**Latest release (v1.4.1)** — UI refresh, improved Ultra scanning, and **closed courses excluded**:
+**Latest release (v1.5.0)** — all recent fixes in one build:
 
-[Download Blackboard-Student-Assistant-v1.4.1.zip](https://github.com/Saumya-Patel-10/Blackboard-Student-Assistant/raw/cursor/remove-study-plan-ui-6fe7/releases/Blackboard-Student-Assistant-v1.4.1.zip)
+[Download Blackboard-Student-Assistant-v1.5.0.zip](https://github.com/Saumya-Patel-10/Blackboard-Student-Assistant/raw/cursor/release-v1.5.0-6fe7/releases/Blackboard-Student-Assistant-v1.5.0.zip)
+
+Includes: no API key for grades, Ultra course scanning, closed courses filtered, editable calendar event names, Study Plan removed, UI refresh.
 
 1. Download and unzip the file.
 2. Chrome → `chrome://extensions` → **Developer mode** → **Load unpacked** → select the **`extension`** folder inside the zip.
@@ -39,13 +41,6 @@ A **Chrome extension** that helps students stay on top of **Blackboard** (Learn 
 ### Blackboard URL
 
 In **Extension options**, set your school’s Blackboard origin (for example `https://elearning.utdallas.edu`). This is used for background auto-scan when that feature is enabled.
-
-### Google AI (Gemini)
-
-1. Create an API key in [Google AI Studio](https://aistudio.google.com/apikey) (Generative Language API).
-2. Paste it under **Google AI (Gemini)** in the options page. The key is stored only in **local extension storage** on your machine.
-
-Without a key, syllabus parsing uses **local text rules** only, and grade fill falls back to **keyword matching** between Blackboard item names and syllabus categories.
 
 ### Google Calendar
 
