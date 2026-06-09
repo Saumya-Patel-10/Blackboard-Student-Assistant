@@ -128,12 +128,8 @@
           <option value="">Select Course</option>
         </select>
       </div>
-      <button type="button" class="btn btn-secondary btn-full" id="btn-fill-grades-bb" style="margin-top: 10px;">Fill from Blackboard grades (AI)</button>
-      <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--text-muted); cursor: pointer;">
-        <input type="checkbox" id="opt-ai-screen-capture" checked>
-        Capture current tab for the API (recommended — aligns grades with your screen)
-      </label>
-      <p style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">Sends grade lines to Google AI in the format <code style="font-size: 10px;">HW1 - 9/10 HW2 - 10/10</code> (averaged per category). Add your API key in Settings.</p>
+      <button type="button" class="btn btn-secondary btn-full" id="btn-fill-grades-bb" style="margin-top: 10px;">Fill from Blackboard (match names)</button>
+      <p style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">Matches scanned Blackboard grade items to syllabus categories by name — <strong>no API key required</strong>. You can edit any cell after filling.</p>
       <div id="grade-categories">
         <!-- Populated dynamically -->
       </div>
