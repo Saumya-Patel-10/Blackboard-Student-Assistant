@@ -40,7 +40,7 @@
   <!-- Onboarding View (shown when no data) -->
   <div id="view-onboarding" class="onboarding">
     <h2>Welcome! 👋</h2>
-    <p>Your personal Blackboard assistant for deadlines, grades, and study planning.</p>
+    <p>Your personal Blackboard assistant for deadlines, grades, and calendar sync.</p>
     <div class="onboarding-steps">
       <div class="onboarding-step">
         <div class="step-number">1</div>
@@ -73,7 +73,7 @@
     <!-- Upcoming Deadlines -->
     <div class="section">
       <div class="section-title-row">
-        <div class="section-title">📅 Upcoming Deadlines</div>
+        <div class="section-title"><span class="section-title-accent"></span>Upcoming Deadlines</div>
         <button type="button" class="text-link-btn" id="btn-manage-deadlines" title="Edit dates or rescan Blackboard">Update schedule</button>
       </div>
       <p class="section-hint">If Blackboard changes, use Update schedule to edit dates manually or rescan the site.</p>
@@ -83,22 +83,21 @@
     </div>
 
     <!-- Quick Actions -->
-    <div class="section">
-      <div class="section-title">⚡ Quick Actions</div>
-      <div class="actions-grid">
-        <button class="action-btn" id="btn-grades">
+    <div class="section section-actions">
+      <div class="section-title"><span class="section-title-accent"></span>Quick Actions</div>
+      <div class="actions-grid actions-grid--three">
+        <button class="action-btn action-btn--grades" id="btn-grades" type="button">
+          <span class="action-shine" aria-hidden="true"></span>
           <div class="action-icon grades">📊</div>
           <span class="action-label">Calculate Grades</span>
         </button>
-        <button class="action-btn" id="btn-calendar">
+        <button class="action-btn action-btn--calendar" id="btn-calendar" type="button">
+          <span class="action-shine" aria-hidden="true"></span>
           <div class="action-icon calendar">📆</div>
           <span class="action-label">Sync Calendar</span>
         </button>
-        <button class="action-btn" id="btn-plan">
-          <div class="action-icon plan">📋</div>
-          <span class="action-label">Study Plan</span>
-        </button>
-        <button class="action-btn" id="btn-syllabus">
+        <button class="action-btn action-btn--syllabus" id="btn-syllabus" type="button">
+          <span class="action-shine" aria-hidden="true"></span>
           <div class="action-icon syllabus">📄</div>
           <span class="action-label">Upload Syllabus</span>
         </button>
@@ -107,7 +106,7 @@
 
     <!-- My Courses -->
     <div class="section">
-      <div class="section-title">📚 My Courses</div>
+      <div class="section-title"><span class="section-title-accent"></span>My Courses</div>
       <div id="courses-list">
         <!-- Populated by JS -->
       </div>
@@ -129,27 +128,8 @@
           <option value="">Select Course</option>
         </select>
       </div>
-
-      <div class="section-title" style="margin-top: 12px;">Calculator mode</div>
-      <div class="tab-bar grade-mode-bar">
-        <button type="button" class="tab-btn active grade-mode-btn" data-grade-mode="course">Course grade</button>
-        <button type="button" class="tab-btn grade-mode-btn" data-grade-mode="exam-needed">Score needed on exam</button>
-      </div>
-
-      <div id="grade-drop-section" class="grade-drop-box" style="margin-top: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius);">
-        <div style="font-size: 13px; font-weight: 600; margin-bottom: 8px;">Dropped assignments or exams?</div>
-        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; cursor: pointer;">
-          <input type="radio" name="grade-drops" value="no" checked> No drops
-        </label>
-        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
-          <input type="radio" name="grade-drops" value="yes"> Yes — drop items (use codes from the table, e.g. E1, A2, A3)
-        </label>
-        <input type="text" id="grade-drop-codes" class="hidden" placeholder="E1, A2, A3" style="width: 100%; margin-top: 10px; padding: 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-size: 13px;">
-      </div>
-
       <button type="button" class="btn btn-secondary btn-full" id="btn-fill-grades-bb" style="margin-top: 10px;">Fill from Blackboard (match names)</button>
-      <p style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">Matches scanned Blackboard items to categories by name — no API key required. You can edit any cell after.</p>
-
+      <p style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">Matches scanned Blackboard grade items to syllabus categories by name — <strong>no API key required</strong>. You can edit any cell after filling.</p>
       <div id="grade-categories">
         <!-- Populated dynamically -->
       </div>
@@ -157,20 +137,13 @@
         <div class="big-grade" id="calculated-grade">--</div>
         <div class="letter-grade" id="letter-grade">Select a course to begin</div>
       </div>
-
-      <div id="grade-exam-needed-panel" class="hidden" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
-        <div class="section-title">🎯 What do I need on an exam?</div>
-        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">Enter grades for everything else above, then pick the exam and your target course grade.</p>
+      <div style="margin-top: 12px;">
+        <div class="section-title">🎯 What Grade Do You Need?</div>
         <div class="goal-input-group">
-          <select id="grade-target-exam-select" style="flex: 1;">
-            <option value="">Which exam?</option>
-          </select>
+          <input type="number" id="target-grade" placeholder="Target %" min="0" max="100">
+          <button class="btn btn-primary btn-sm" id="btn-calc-needed">Calculate</button>
         </div>
-        <div class="goal-input-group" style="margin-top: 8px;">
-          <input type="number" id="target-grade-exam" placeholder="Target course %" min="0" max="100">
-          <button type="button" class="btn btn-primary btn-sm" id="btn-calc-exam-needed">Calculate</button>
-        </div>
-        <div id="exam-needed-result" class="hidden" style="font-size: 13px; color: var(--text-muted); margin-top: 8px;"></div>
+        <div id="needed-grade-result" class="hidden" style="font-size: 13px; color: var(--text-muted); margin-top: 8px;"></div>
       </div>
     </div>
   </div>
@@ -198,25 +171,6 @@
         <button class="btn btn-primary btn-full" id="btn-sync-selected">Sync Selected to Calendar</button>
       </div>
       <div id="calendar-status" class="hidden" style="text-align: center; margin-top: 12px; font-size: 13px;"></div>
-    </div>
-  </div>
-
-  <!-- Study Plan Panel -->
-  <div class="panel-overlay" id="overlay-plan"></div>
-  <div class="panel" id="panel-plan">
-    <div class="panel-header">
-      <h2>📋 Study Plan</h2>
-      <button class="panel-close" data-close="plan">✕</button>
-    </div>
-    <div class="panel-body">
-      <div class="section-title">🎯 Set Your Goals</div>
-      <div id="course-goals">
-        <!-- Populated by JS -->
-      </div>
-      <button class="btn btn-primary btn-full" id="btn-generate-plan" style="margin: 16px 0;">Generate Study Plan</button>
-      <div id="study-plan-output">
-        <!-- Populated by JS -->
-      </div>
     </div>
   </div>
 
