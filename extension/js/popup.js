@@ -27,80 +27,13 @@
     return isNaN(n) || !isFinite(n) ? null : n;
   }
 
-  function assignCategoryCodes(categories) {
-    let aCount = 0;
-    let eCount = 0;
-    let qCount = 0;
-    return (categories || []).map((cat) => {
-      const name = String(cat.category || '').trim();
-      const lower = name.toLowerCase();
-      let code;
-      const examNum = name.match(/\b(?:exam|test|midterm|final)\s*#?\s*(\d+)\b/i);
-      const hwNum = name.match(/\b(?:hw|homework|assignment|assign)\s*#?\s*(\d+)\b/i);
-      if (examNum) code = `E${examNum[1]}`;
-      else if (/exam|midterm|final/.test(lower)) {
-        eCount += 1;
-        code = `E${eCount}`;
-      } else if (hwNum) code = `A${hwNum[1]}`;
-      else if (/homework|assignment|\bhw\b|assignments/.test(lower)) {
-        aCount += 1;
-        code = `A${aCount}`;
-      } else if (/quiz/.test(lower)) {
-        qCount += 1;
-        code = `Q${qCount}`;
-      } else {
-        const abbr = (name.replace(/[^a-z0-9]/gi, '').slice(0, 2) || 'OT').toUpperCase();
-        code = `${abbr}${eCount + aCount + qCount + 1}`;
-      }
-      return { ...cat, code };
-    });
-  }
-
-  function parseDroppedCodes(raw) {
-    return String(raw || '')
-      .split(/[\s,;]+/)
-      .map((s) => s.trim().toUpperCase())
-      .filter(Boolean);
-  }
-
-  function getDropSettingsFromUI() {
-    const yes = document.querySelector('input[name="grade-drops"][value="yes"]')?.checked;
-    const codes = yes ? parseDroppedCodes($('#grade-drop-codes')?.value) : [];
-    return { dropEnabled: !!yes, droppedCodes: codes };
-  }
-
-  function applyDroppedCategories(allCategories) {
-    const { dropEnabled, droppedCodes } = getDropSettingsFromUI();
-    if (!dropEnabled || !droppedCodes.length) return allCategories;
-    const drop = new Set(droppedCodes);
-    return allCategories.filter((c) => !drop.has(String(c.code || '').toUpperCase()));
-  }
-
-  function collectCategoriesFromInputs() {
-    const container = $('#grade-categories');
-    const raw = container?.dataset.categories;
-    if (!raw) return [];
-    const categories = JSON.parse(raw);
-    const inputs = container.querySelectorAll('.grade-input') || [];
-    return categories.map((cat, i) => {
-      const val = inputs[i]?.value ?? '';
-      const score = val !== '' ? parseGradeCellInput(val) : null;
-      return {
-        ...cat,
-        score: score !== null && !isNaN(score) ? Math.round(score * 10000) / 10000 : null,
-      };
-    });
-  }
-
   let appState = {
     courses: [],
     assignments: [],
     grades: [],
     syllabusData: {},
-    courseGoals: {},
     settings: {},
     lastScan: null,
-    studyPlanProgress: {},
   };
 
   async function init() {
@@ -112,10 +45,13 @@
   async function loadData() {
     const data = await chrome.storage.local.get([
       'courses', 'assignments', 'grades', 'syllabusData',
-      'courseGoals', 'settings', 'lastScan', 'studyPlanProgress'
+      'settings', 'lastScan'
     ]);
     Object.assign(appState, data);
     if (!appState.settings) appState.settings = {};
+    if (appState.courses?.length) {
+      appState.courses = appState.courses.filter((c) => !isClosedCourseName(c?.name || c?.fullName));
+    }
     if (appState.assignments?.length) {
       appState.assignments = dedupeAssignmentsForState(appState.assignments);
     }
@@ -152,6 +88,8 @@
       };
       const ov = prefer.dueDateOverride || other.dueDateOverride;
       if (ov) merged.dueDateOverride = ov;
+      const calTitle = prefer.calendarTitle || other.calendarTitle;
+      if (calTitle) merged.calendarTitle = calTitle;
       map.set(k, merged);
     }
     return Array.from(map.values());
@@ -309,7 +247,6 @@
     // Quick actions
     $('#btn-grades').addEventListener('click', () => openPanel('grades'));
     $('#btn-calendar').addEventListener('click', () => openPanel('calendar'));
-    $('#btn-plan').addEventListener('click', () => openPanel('plan'));
     $('#btn-syllabus').addEventListener('click', () => openPanel('syllabus'));
 
     // Panel close buttons
@@ -333,26 +270,13 @@
     $('#btn-fill-grades-bb').addEventListener('click', handleFillGradesFromBlackboard);
     $('#btn-save-target-grade')?.addEventListener('click', saveTargetGradeFromBanner);
     $('#btn-dismiss-target-banner')?.addEventListener('click', dismissTargetGradeBanner);
-    $$('.grade-mode-btn').forEach((btn) => {
-      btn.addEventListener('click', handleGradeModeSwitch);
-    });
-    $$('input[name="grade-drops"]').forEach((radio) => {
-      radio.addEventListener('change', handleDropPolicyChange);
-    });
-    $('#grade-drop-codes')?.addEventListener('input', () => {
-      const cats = JSON.parse($('#grade-categories')?.dataset.categories || '[]');
-      if (cats.length) recalculateGrade(cats);
-    });
-    $('#btn-calc-exam-needed')?.addEventListener('click', handleCalcExamNeeded);
+    $('#btn-calc-needed').addEventListener('click', handleCalcNeeded);
 
     // Calendar
     $$('.tab-btn[data-tab]').forEach(btn => {
       btn.addEventListener('click', handleCalendarTab);
     });
     $('#btn-sync-selected').addEventListener('click', handleSyncCalendar);
-
-    // Study plan
-    $('#btn-generate-plan').addEventListener('click', handleGeneratePlan);
 
     // Syllabus
     $('#upload-zone').addEventListener('click', () => $('#syllabus-file').click());
@@ -412,7 +336,6 @@
 
     if (name === 'grades') populateGradePanel();
     if (name === 'calendar') populateCalendarPanel();
-    if (name === 'plan') populatePlanPanel();
     if (name === 'syllabus') populateSyllabusPanel();
     if (name === 'manage-deadlines') populateManageDeadlinesPanel();
   }
@@ -430,7 +353,7 @@
     appState.courses.forEach(c => {
       select.innerHTML += `<option value="${c.id}">${escapeHtml(c.name)}</option>`;
     });
-    const tg = $('#target-grade-exam');
+    const tg = $('#target-grade');
     const def = appState.settings?.defaultTargetGrade;
     if (tg && def != null && !isNaN(def) && tg.value === '') {
       tg.value = String(def);
@@ -447,7 +370,7 @@
     const settings = { ...(appState.settings || {}), defaultTargetGrade: v, targetGradeBannerDismissed: true };
     appState.settings = settings;
     await chrome.storage.local.set({ settings });
-    const tg = $('#target-grade-exam');
+    const tg = $('#target-grade');
     if (tg) tg.value = String(v);
     $('#target-grade-banner')?.classList.add('hidden');
   }
@@ -469,13 +392,10 @@
     let categories = [];
     const confirmed = getConfirmedGradingCategories(courseId);
     if (confirmed?.length > 0) {
-      categories = assignCategoryCodes(
-        confirmed.map((c) => ({
-          category: c.category,
-          weight: c.weight,
-          code: c.code,
-        }))
-      );
+      categories = confirmed.map((c) => ({
+        category: c.category,
+        weight: c.weight,
+      }));
     } else if (syllabus?.gradingBreakdown?.categories?.length > 0 && !syllabus.gradingConfirmed) {
       container.innerHTML =
         '<p style="font-size: 13px; color: var(--warning); margin-top: 8px;">Syllabus parsed but grading weights are <strong>not confirmed</strong>. Open <strong>Upload Syllabus</strong>, select this course, and click <strong>Edit grading weights</strong> to confirm.</p>';
@@ -490,42 +410,16 @@
           'Use example categories as placeholders? Cancel to leave the calculator empty.'
       );
       if (usePlaceholder) {
-        categories = assignCategoryCodes([
+        categories = [
           { category: 'Assignments', weight: 30 },
           { category: 'Midterm', weight: 25 },
           { category: 'Final Exam', weight: 30 },
           { category: 'Participation', weight: 15 },
-        ]);
+        ];
       }
     }
 
     renderGradeCategoryTable(container, categories, courseId);
-  }
-
-  function populateExamTargetSelect(categories) {
-    const sel = $('#grade-target-exam-select');
-    if (!sel) return;
-    const exams = (categories || []).filter((c) => /^E\d+$/i.test(String(c.code || '')) || /exam|midterm|final/i.test(String(c.category || '')));
-    sel.innerHTML = '<option value="">Which exam?</option>';
-    exams.forEach((c) => {
-      sel.innerHTML += `<option value="${escapeHtml(c.code)}">${escapeHtml(c.category)} (${escapeHtml(c.code)})</option>`;
-    });
-  }
-
-  function handleGradeModeSwitch(e) {
-    $$('.grade-mode-btn').forEach((b) => b.classList.remove('active'));
-    e.target.classList.add('active');
-    const mode = e.target.dataset.gradeMode;
-    $('#grade-exam-needed-panel')?.classList.toggle('hidden', mode !== 'exam-needed');
-    $('#grade-result')?.classList.toggle('hidden', mode === 'exam-needed');
-  }
-
-  function handleDropPolicyChange() {
-    const yes = document.querySelector('input[name="grade-drops"][value="yes"]')?.checked;
-    const inp = $('#grade-drop-codes');
-    if (inp) inp.classList.toggle('hidden', !yes);
-    const cats = JSON.parse($('#grade-categories')?.dataset.categories || '[]');
-    if (cats.length) recalculateGrade(cats);
   }
 
   function renderGradeCategoryTable(container, categories, courseId) {
@@ -546,25 +440,23 @@
     };
 
     container.innerHTML = `
-      <p style="font-size: 11px; color: var(--text-muted); margin-top: 10px;">Use the <strong>Code</strong> column when dropping items (e.g. E1, A2). Grades: percent or <code style="font-size: 10px;">earned/total</code> (72/80).</p>
+      <p style="font-size: 11px; color: var(--text-muted); margin-top: 10px;">Enter each grade as a percent (0–100) or as <code style="font-size: 10px;">earned/total</code> (e.g. 72/80). Course grade uses your full syllabus weights (should total ~100%).</p>
       <table class="grade-table">
         <thead>
           <tr>
-            <th>Code</th>
             <th>Category</th>
             <th>Weight</th>
             <th>Grade</th>
-            <th>Points</th>
-            <th>% course</th>
+            <th>Points (weight)</th>
+            <th>% of course</th>
           </tr>
         </thead>
         <tbody>
           ${categories.map((cat, i) => `
-            <tr class="grade-cat-row" data-code="${escapeHtml(cat.code || '')}">
-              <td><code style="font-size:11px;">${escapeHtml(cat.code || '')}</code></td>
+            <tr>
               <td>${escapeHtml(cat.category)}</td>
               <td>${cat.weight}%</td>
-              <td><input type="text" class="grade-input" inputmode="decimal" data-index="${i}" placeholder="85 or 72/80" value="${escapeHtml(displayValue(cat))}"></td>
+              <td><input type="text" class="grade-input" inputmode="decimal" data-index="${i}" placeholder="e.g. 85 or 72/80" value="${escapeHtml(displayValue(cat))}"></td>
               <td class="grade-points-earned" data-index="${i}">—</td>
               <td class="grade-pct-course" data-index="${i}">—</td>
             </tr>
@@ -572,12 +464,9 @@
         </tbody>
       </table>`;
 
-    container.dataset.categories = JSON.stringify(
-      categories.map(({ category, weight, code }) => ({ category, weight, code }))
-    );
+    container.dataset.categories = JSON.stringify(categories.map(({ category, weight }) => ({ category, weight })));
     container.dataset.courseId = courseId || '';
     $('#grade-result').classList.remove('hidden');
-    populateExamTargetSelect(categories);
 
     container.querySelectorAll('.grade-input').forEach((input) => {
       input.addEventListener('input', () => {
@@ -606,7 +495,7 @@
     const courseGrades = appState.grades.filter((g) => g.courseId === courseId);
 
     if (courseGrades.length === 0) {
-      alert('No grades found for this course. Open the Grades page on Blackboard and tap refresh, then try again.');
+      alert('No grades found for this course. Open the course Grades page on Blackboard and tap refresh, then try again.');
       return;
     }
 
@@ -628,42 +517,20 @@
 
   function recalculateGrade(categories) {
     const container = $('#grade-categories');
-    const allCats = collectCategoriesFromInputs();
-    const cats = applyDroppedCategories(allCats.length ? allCats : categories.map((c) => ({ ...c, score: null })));
-
-    const { dropEnabled, droppedCodes } = getDropSettingsFromUI();
-    if (dropEnabled && droppedCodes.length) {
-      const allCodes = new Set(allCats.map((c) => String(c.code || '').toUpperCase()));
-      const unknown = droppedCodes.filter((d) => !allCodes.has(d));
-      let dropNote = $('#grade-drop-note');
-      if (!dropNote && container?.parentElement) {
-        dropNote = document.createElement('div');
-        dropNote.id = 'grade-drop-note';
-        dropNote.style.fontSize = '11px';
-        dropNote.style.marginTop = '6px';
-        const dropSec = $('#grade-drop-section');
-        dropSec?.appendChild(dropNote);
-      }
-      if (dropNote) {
-        if (unknown.length) {
-          dropNote.style.color = 'var(--warning)';
-          dropNote.textContent = `Unknown drop codes (ignored): ${unknown.join(', ')}`;
-        } else {
-          dropNote.style.color = 'var(--text-muted)';
-          dropNote.textContent = `Dropped from calculation: ${droppedCodes.join(', ')}`;
-        }
-      }
-    } else {
-      $('#grade-drop-note')?.remove();
-    }
+    const inputs = container ? container.querySelectorAll('.grade-input') : [];
+    const cats = categories.map((cat, i) => {
+      const raw = inputs[i] ? inputs[i].value : '';
+      const score = raw !== '' ? parseGradeCellInput(raw) : null;
+      return {
+        ...cat,
+        score: score !== null && score !== undefined && !isNaN(score) ? Math.round(score * 10000) / 10000 : null,
+      };
+    });
 
     chrome.runtime.sendMessage({ action: 'calculateGrades', categories: cats }, (result) => {
       if (!result) return;
-      const mode = document.querySelector('.grade-mode-btn.active')?.dataset.gradeMode || 'course';
-      if (mode === 'course') {
-        $('#calculated-grade').textContent = `${result.percentage}%`;
-        $('#letter-grade').textContent = `Letter Grade: ${result.letter}`;
-      }
+      $('#calculated-grade').textContent = `${result.percentage}%`;
+      $('#letter-grade').textContent = `Letter Grade: ${result.letter}`;
 
       const tw = result.syllabusTotalWeight != null ? result.syllabusTotalWeight : result.totalWeight;
       let weightNote = $('#grade-weight-note');
@@ -677,29 +544,22 @@
       if (weightNote) {
         const ok = tw >= 90 && tw <= 110;
         weightNote.style.color = ok ? 'var(--text-muted)' : 'var(--warning)';
-        const dropMsg = dropEnabled && droppedCodes.length ? ` (after drops, active weight ${tw}%)` : '';
-        weightNote.textContent = `Active weights total: ${Math.round(tw * 100) / 100}%${dropMsg}${ok ? ' ✓' : ' — aim for ~100%'}`;
+        weightNote.textContent = `Syllabus weights total: ${Math.round(tw * 100) / 100}%${ok ? ' (≈100% — scale is correct)' : ' — should add to ~100% for a correct course grade.'}`;
       }
 
       const breakdown = result.breakdown || [];
-      const breakdownByCat = new Map((breakdown || []).map((r) => [r.category, r]));
-      allCats.forEach((cat, i) => {
-        const row = breakdownByCat.get(cat.category);
-        const dropped =
-          dropEnabled && droppedCodes.includes(String(cat.code || '').toUpperCase());
+      breakdown.forEach((row, i) => {
         const pt = container?.querySelector(`.grade-points-earned[data-index="${i}"]`);
         const pc = container?.querySelector(`.grade-pct-course[data-index="${i}"]`);
         if (pt) {
-          pt.textContent = dropped
-            ? 'dropped'
-            : row?.contribution != null
+          pt.textContent =
+            row.contribution != null && row.contribution !== undefined
               ? row.contribution.toFixed(2)
               : '—';
         }
         if (pc) {
-          pc.textContent = dropped
-            ? '—'
-            : row?.contributionPercentOfCourse != null
+          pc.textContent =
+            row.contributionPercentOfCourse != null && row.contributionPercentOfCourse !== undefined
               ? `${row.contributionPercentOfCourse.toFixed(2)}%`
               : '—';
         }
@@ -707,44 +567,54 @@
     });
   }
 
-  function handleCalcExamNeeded() {
+  function handleCalcNeeded() {
     const courseId = $('#grade-course-select').value;
     if (!courseId) return;
 
-    const target = parseFloat($('#target-grade-exam')?.value);
-    const examCode = $('#grade-target-exam-select')?.value;
-    if (isNaN(target) || target < 0 || target > 100) {
-      alert('Enter a target course percentage (0–100).');
-      return;
-    }
-    if (!examCode) {
-      alert('Select which exam to calculate for.');
-      return;
-    }
+    const target = parseFloat($('#target-grade').value);
+    if (isNaN(target)) return;
 
-    const allCats = collectCategoriesFromInputs();
-    const cats = applyDroppedCategories(allCats);
-    if (getDropSettingsFromUI().droppedCodes.includes(String(examCode).toUpperCase())) {
-      alert('That exam is marked as dropped and cannot be used for this calculation.');
-      return;
-    }
+    const categoriesRaw = $('#grade-categories').dataset.categories;
+    if (!categoriesRaw) return;
 
-    const forCalc = cats.map((c) =>
-      String(c.code) === examCode ? { ...c, score: null } : c
-    );
+    const categories = JSON.parse(categoriesRaw);
+    const inputs = $('#grade-categories')?.querySelectorAll('.grade-input') || [];
+    const cats = categories.map((cat, i) => {
+      const raw = inputs[i]?.value ?? '';
+      const score = raw !== '' ? parseGradeCellInput(raw) : null;
+      return {
+        ...cat,
+        score: score !== null && !isNaN(score) ? score : null,
+      };
+    });
 
     chrome.runtime.sendMessage(
-      { action: 'calculateNeededOnCategory', categories: forCalc, targetGrade: target, categoryCode: examCode },
+      { action: 'calculateNeeded', categories: cats, targetGrade: target },
       (result) => {
-        const el = $('#exam-needed-result');
+        const el = $('#needed-grade-result');
         el.classList.remove('hidden');
-        el.style.color = result?.possible === false ? 'var(--warning)' : 'var(--text)';
         el.textContent = result?.message || 'Could not calculate.';
       }
     );
   }
 
   // === Calendar ===
+
+  function calendarEventTitle(assignment) {
+    const custom = (assignment?.calendarTitle || '').trim();
+    if (custom) return custom;
+    const scanned = (assignment?.title || '').trim();
+    if (scanned && !/^due\s*date:/i.test(scanned)) return scanned;
+    const course = appState.courses.find((c) => c.id === assignment?.courseId);
+    return course ? `${course.name} — Assignment` : 'Assignment';
+  }
+
+  function calendarExamTitle(exam) {
+    const custom = (exam?.calendarTitle || '').trim();
+    if (custom) return custom;
+    const base = [exam?.type, exam?.courseName].filter(Boolean).join(' — ');
+    return base || 'Exam';
+  }
 
   function populateCalendarPanel() {
     renderCalendarEvents('cal-deadlines');
@@ -774,26 +644,35 @@
 
       container.innerHTML =
         `<p class="cal-panel-hint" style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">` +
-        `Adjust the date and time below, then <strong>Save due date</strong> before syncing. Past dates are included if you still want them on your calendar.</p>` +
+        `Edit the <strong>event name</strong> and <strong>date/time</strong> below, then click <strong>Save</strong> before syncing to Google Calendar.</p>` +
         deadlines
           .map((a, i) => {
             const course = appState.courses.find((c) => c.id === a.courseId);
             const due = effectiveDueDate(a);
             const localVal = isoToDatetimeLocalValue(due);
+            const eventTitle = calendarEventTitle(a);
+            const scannedHint =
+              a.title && a.title !== eventTitle && /^due\s*date:/i.test(a.title)
+                ? `<div class="cal-scanned-hint">Scanned as: ${escapeHtml(a.title)}</div>`
+                : '';
             return `
           <div class="event-preview cal-deadline-row" data-assignment-id="${escapeHtml(a.id)}">
             <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
               <input type="checkbox" checked class="cal-event-check" data-index="${i}" data-type="deadline"
                      style="margin-top: 3px;">
               <div style="flex: 1; min-width: 0;">
-                <div class="event-title">${escapeHtml(a.title)}</div>
                 <div class="event-date">${formatDateTime(new Date(due))}${course ? ` · ${escapeHtml(course.name)}` : ''}</div>
                 <span class="event-type ${a.type}">${escapeHtml(a.type || '')}</span>
+                ${scannedHint}
                 <div class="cal-due-edit" style="margin-top: 8px;">
-                  <span style="font-size: 11px; color: var(--text-muted);">Date &amp; time for Google Calendar</span>
+                  <span class="cal-field-label">Event name for Google Calendar</span>
+                  <input type="text" class="cal-title-input" data-aid="${escapeHtml(a.id)}" value="${escapeHtml(eventTitle)}"
+                    placeholder="e.g. HW 5 — Data Structures"
+                    style="width: 100%; margin-top: 4px; padding: 6px 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-size: 12px;">
+                  <span class="cal-field-label" style="margin-top: 8px; display: block;">Date &amp; time for Google Calendar</span>
                   <input type="datetime-local" class="cal-due-input" data-aid="${escapeHtml(a.id)}" value="${localVal}"
                     style="width: 100%; margin-top: 4px; padding: 6px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-size: 12px;">
-                  <button type="button" class="btn-sm-inline cal-save-due" data-aid="${escapeHtml(a.id)}" style="margin-top: 6px;">Save due date</button>
+                  <button type="button" class="btn-sm-inline cal-save-due" data-aid="${escapeHtml(a.id)}" style="margin-top: 8px;">Save</button>
                 </div>
               </div>
             </label>
@@ -802,7 +681,7 @@
           .join('');
 
       container.querySelectorAll('.cal-save-due').forEach((btn) => {
-        btn.addEventListener('click', () => saveCalendarDueOverride(btn.dataset.aid));
+        btn.addEventListener('click', () => saveCalendarDeadlineRow(btn.dataset.aid));
       });
     } else if (tab === 'cal-exams') {
       mergeManualExamsIntoSyllabusData();
@@ -830,27 +709,31 @@
 
       container.innerHTML =
         `<p class="cal-panel-hint" style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">` +
-        `Set or fix the exam time below, then <strong>Save</strong>. Only exams with a saved date are synced.</p>` +
+        `Edit the <strong>event name</strong> and <strong>exam time</strong>, then <strong>Save</strong> before syncing.</p>` +
         allExams
           .map((exam, i) => {
             const iso = exam.date && !isNaN(new Date(exam.date).getTime()) ? exam.date : '';
             const localVal = isoToDatetimeLocalValue(iso);
             const aid = exam.assignmentId ? escapeHtml(exam.assignmentId) : '';
             const eidx = exam.assignmentId ? '' : String(exam._examIndex);
+            const eventTitle = calendarExamTitle(exam);
             return `
         <div class="event-preview cal-exam-row">
           <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
             <input type="checkbox" ${iso ? 'checked' : ''} class="cal-event-check" data-index="${i}" data-type="exam"
                    style="margin-top: 3px;">
             <div style="flex: 1; min-width: 0;">
-              <div class="event-title">${escapeHtml(exam.type)} — ${escapeHtml(exam.courseName)}</div>
-              <div class="event-date">${escapeHtml(exam.dateRaw || (iso ? formatDateTime(new Date(iso)) : 'No date — set below'))}</div>
+              <div class="event-date">${escapeHtml(exam.dateRaw || (iso ? formatDateTime(new Date(iso)) : 'No date — set below'))} · ${escapeHtml(exam.courseName)}</div>
               <span class="event-type exam">Exam</span>
               <div class="cal-due-edit" style="margin-top: 8px;">
-                <span style="font-size: 11px; color: var(--text-muted);">Exam date &amp; time</span>
+                <span class="cal-field-label">Event name for Google Calendar</span>
+                <input type="text" class="cal-exam-title-input" value="${escapeHtml(eventTitle)}"
+                  placeholder="e.g. Exam 2 — Software Engineering"
+                  style="width: 100%; margin-top: 4px; padding: 6px 8px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-size: 12px;">
+                <span class="cal-field-label" style="margin-top: 8px; display: block;">Exam date &amp; time</span>
                 <input type="datetime-local" class="cal-exam-datetime" value="${localVal}"
                   style="width: 100%; margin-top: 4px; padding: 6px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 8px; font-size: 12px;">
-                <button type="button" class="btn-sm-inline cal-save-exam" data-assignment-id="${aid}" data-syllabus-exam-index="${eidx}" data-course-id="${escapeHtml(exam.courseId)}" style="margin-top: 6px;">Save</button>
+                <button type="button" class="btn-sm-inline cal-save-exam" data-assignment-id="${aid}" data-syllabus-exam-index="${eidx}" data-course-id="${escapeHtml(exam.courseId)}" style="margin-top: 8px;">Save</button>
               </div>
             </div>
           </label>
@@ -866,19 +749,27 @@
     }
   }
 
-  async function saveCalendarDueOverride(assignmentId) {
-    const input = [...document.querySelectorAll('input.cal-due-input')].find(
-      (el) => el.dataset.aid === assignmentId
-    );
-    const iso = datetimeLocalToIso(input?.value);
+  async function saveCalendarDeadlineRow(assignmentId) {
+    const row = document.querySelector(`.cal-deadline-row[data-assignment-id="${CSS.escape(assignmentId)}"]`);
+    const dateInput = row?.querySelector('input.cal-due-input');
+    const titleInput = row?.querySelector('input.cal-title-input');
+    const iso = datetimeLocalToIso(dateInput?.value);
+    const calendarTitle = (titleInput?.value || '').trim();
+
+    if (!calendarTitle) {
+      alert('Enter an event name for Google Calendar.');
+      return;
+    }
     if (!iso) {
       alert('Pick a valid date and time.');
       return;
     }
+
     const idx = appState.assignments.findIndex((a) => a.id === assignmentId);
     if (idx === -1) return;
     appState.assignments[idx] = {
       ...appState.assignments[idx],
+      calendarTitle,
       dueDateOverride: iso,
       userEdited: true,
     };
@@ -886,13 +777,20 @@
     const st = $('#calendar-status');
     st.classList.remove('hidden');
     st.style.color = 'var(--success)';
-    st.textContent = 'Due date saved for calendar.';
+    st.textContent = 'Event name and date saved for calendar.';
   }
 
   async function saveExamDateFromCalendarPanel(btn) {
     const row = btn.closest('.cal-exam-row');
     const input = row?.querySelector('input.cal-exam-datetime');
+    const titleInput = row?.querySelector('input.cal-exam-title-input');
     const iso = datetimeLocalToIso(input?.value);
+    const calendarTitle = (titleInput?.value || '').trim();
+
+    if (!calendarTitle) {
+      alert('Enter an event name for Google Calendar.');
+      return;
+    }
     if (!iso) {
       alert('Pick a valid date and time for this exam.');
       return;
@@ -906,6 +804,7 @@
       if (idx === -1) return;
       appState.assignments[idx] = {
         ...appState.assignments[idx],
+        calendarTitle,
         dueDate: iso,
         dueDateOverride: null,
         dateRaw: formatDateTime(new Date(iso)),
@@ -922,6 +821,7 @@
       }
       exams[ei] = {
         ...exams[ei],
+        calendarTitle,
         date: iso,
         dateRaw: formatDateTime(new Date(iso)),
       };
@@ -933,6 +833,7 @@
       const examRow = {
         id: examAsgId,
         title: exams[ei].type || 'Exam',
+        calendarTitle,
         dueDate: iso,
         type: 'exam',
         courseId,
@@ -953,7 +854,7 @@
     const st = $('#calendar-status');
     st.classList.remove('hidden');
     st.style.color = 'var(--success)';
-    st.textContent = 'Exam date saved.';
+    st.textContent = 'Exam name and date saved.';
     renderCalendarEvents('cal-exams');
   }
 
@@ -984,7 +885,7 @@
           const course = appState.courses.find((c) => c.id === a.courseId);
           const startDate = effectiveDueDate(a);
           const ev = {
-            title: `📝 ${a.title}`,
+            title: `📝 ${calendarEventTitle(a)}`,
             course: course?.name || '',
             type: a.type,
             startDate,
@@ -1012,7 +913,7 @@
         if (!exam || !exam.date || isNaN(new Date(exam.date).getTime())) return;
         const startDate = exam.date;
         const ev = {
-          title: `📘 ${exam.type || 'Exam'}`,
+          title: `📘 ${calendarExamTitle(exam)}`,
           course: exam.courseName || '',
           type: 'exam',
           startDate,
@@ -1047,115 +948,6 @@
         }
       }
     );
-  }
-
-  // === Study Plan ===
-
-  function populatePlanPanel() {
-    const container = $('#course-goals');
-    container.innerHTML = appState.courses.map(c => {
-      const current = appState.courseGoals[c.id] || '';
-      return `
-        <div class="goal-input-group">
-          <span style="font-size: 13px; min-width: 100px; color: var(--text);">${escapeHtml(c.name)}</span>
-          <select class="goal-select" data-course-id="${c.id}">
-            <option value="" ${!current ? 'selected' : ''}>No goal</option>
-            <option value="90" ${current == 90 ? 'selected' : ''}>A (90%+)</option>
-            <option value="80" ${current == 80 ? 'selected' : ''}>B (80%+)</option>
-            <option value="70" ${current == 70 ? 'selected' : ''}>C (70%+)</option>
-            <option value="60" ${current == 60 ? 'selected' : ''}>D (60%+)</option>
-          </select>
-        </div>`;
-    }).join('');
-  }
-
-  async function handleGeneratePlan() {
-    const goals = {};
-    $$('.goal-select').forEach(sel => {
-      if (sel.value) goals[sel.dataset.courseId] = parseInt(sel.value);
-    });
-
-    appState.courseGoals = goals;
-    await chrome.storage.local.set({ courseGoals: goals });
-
-    const settings = appState.settings || {};
-
-    chrome.runtime.sendMessage({
-      action: 'generatePlan',
-      config: {
-        assignments: appState.assignments,
-        courses: appState.courses,
-        goals,
-        studyHoursPerDay: settings.studyHoursPerDay || 4,
-        studyDays: settings.studyDays || ['mon', 'tue', 'wed', 'thu', 'fri'],
-      }
-    }, (plan) => {
-      renderStudyPlan(plan);
-    });
-  }
-
-  function renderStudyPlan(plan) {
-    const container = $('#study-plan-output');
-
-    if (!plan || plan.weeks.length === 0) {
-      container.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-icon">📋</div>
-          <p>${plan?.summary || 'No tasks to plan.'}</p>
-        </div>`;
-      return;
-    }
-
-    let html = `<p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">${escapeHtml(plan.summary)}</p>`;
-
-    for (const week of plan.weeks) {
-      html += `
-        <div class="plan-week">
-          <div class="plan-week-header">
-            Week ${week.weekNumber}: ${week.label}
-            ${week.isOverloaded ? '<span style="color: var(--warning);"> ⚠️ Heavy</span>' : ''}
-          </div>`;
-
-      for (const task of week.tasks) {
-        const isCompleted = appState.studyPlanProgress[task.id];
-        html += `
-          <div class="plan-task">
-            <div class="plan-checkbox ${isCompleted ? 'checked' : ''}" data-task-id="${task.id}"></div>
-            <div class="plan-task-info">
-              <div class="plan-task-name ${isCompleted ? 'completed' : ''}">${escapeHtml(task.title)}</div>
-              <div class="plan-task-detail">
-                ${escapeHtml(task.course)} · ${task.type} · ~${task.estimatedHours}h
-                · Due ${formatDate(new Date(task.dueDate))}
-              </div>
-            </div>
-          </div>`;
-      }
-
-      html += `
-          <div class="progress-bar">
-            <div class="progress-fill ${week.isOverloaded ? 'warning' : 'good'}"
-                 style="width: ${Math.min(100, (week.totalHoursNeeded / week.totalAvailableHours) * 100)}%">
-            </div>
-          </div>
-          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
-            ${week.totalHoursNeeded.toFixed(1)}h planned / ${week.totalAvailableHours}h available
-          </div>
-        </div>`;
-    }
-
-    container.innerHTML = html;
-
-    container.querySelectorAll('.plan-checkbox').forEach(cb => {
-      cb.addEventListener('click', async () => {
-        const taskId = cb.dataset.taskId;
-        const isChecked = cb.classList.toggle('checked');
-        const taskName = cb.nextElementSibling.querySelector('.plan-task-name');
-        taskName.classList.toggle('completed', isChecked);
-
-        appState.studyPlanProgress[taskId] = isChecked;
-        await chrome.storage.local.set({ studyPlanProgress: appState.studyPlanProgress });
-      });
-    });
   }
 
   // === Syllabus ===
@@ -1272,7 +1064,6 @@
       }
     }
     const breakdown = buildGradingBreakdownFromCategories(raw);
-    breakdown.categories = assignCategoryCodes(breakdown.categories);
     if (!breakdown.isValid) {
       const proceed = window.confirm(
         `Weights total ${breakdown.totalWeight}% (expected about 100%). Save anyway?`
@@ -1740,7 +1531,7 @@
       populateManageDeadlinesPanel();
 
       st.className = 'syllabus-status success';
-      st.textContent = 'Rescan complete. Review your deadlines below.';
+      st.textContent = `Rescan complete — ${appState.courses.length} course(s), ${appState.assignments.length} item(s).`;
     } catch (e) {
       st.className = 'syllabus-status error';
       st.textContent =
@@ -1895,25 +1686,48 @@
     const dot = $('#status-dot');
     const text = $('#status-text');
     dot.className = 'status-dot scanning';
-    text.textContent = 'Scanning...';
+    text.textContent = 'Scanning Blackboard tab...';
 
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const savedUrl = appState.settings?.blackboardUrl || appState.blackboardUrl || '';
 
-      if (tab && (isBlackboardUrl(tab.url) || (savedUrl && tab.url?.startsWith(savedUrl)))) {
-        chrome.tabs.sendMessage(tab.id, { action: 'scan' }, async () => {
-          await new Promise(r => setTimeout(r, 2500));
-          await loadData();
-          render();
-        });
-      } else {
-        text.textContent = 'Navigate to Blackboard first';
+      if (!tab?.id) {
+        text.textContent = 'No active tab found';
         dot.className = 'status-dot disconnected';
-        setTimeout(updateStatusBar, 3000);
+        return;
+      }
+
+      if (!(isBlackboardUrl(tab.url) || (savedUrl && tab.url?.startsWith(savedUrl)))) {
+        text.textContent = 'Open your Blackboard Courses page, then scan again';
+        dot.className = 'status-dot disconnected';
+        setTimeout(updateStatusBar, 4000);
+        return;
+      }
+
+      const response = await chrome.tabs.sendMessage(tab.id, { action: 'scan' }).catch(() => null);
+
+      if (!response?.success) {
+        text.textContent = 'Scan failed — reload the Blackboard tab, then try again';
+        dot.className = 'status-dot disconnected';
+        setTimeout(updateStatusBar, 5000);
+        return;
+      }
+
+      await loadData();
+      render();
+      updateStatusBar();
+
+      const n = appState.courses.length;
+      if (n === 0) {
+        text.textContent = '0 courses found — stay on the Courses list page and scan again';
+        dot.className = 'status-dot disconnected';
+      } else {
+        text.textContent = `Connected · ${n} course${n === 1 ? '' : 's'} found`;
+        dot.className = 'status-dot';
       }
     } catch {
-      text.textContent = 'Could not connect to Blackboard tab';
+      text.textContent = 'Could not connect — reload Blackboard tab and extension';
       dot.className = 'status-dot disconnected';
     }
   }
@@ -1924,6 +1738,16 @@
   }
 
   // === Utilities ===
+
+  function isClosedCourseName(name) {
+    const n = String(name || '').replace(/\s+/g, ' ').trim();
+    if (!n) return true;
+    if (/^closed$/i.test(n)) return true;
+    if (/^unavailable$/i.test(n)) return true;
+    if (/^archived$/i.test(n)) return true;
+    if (/^closed\b/i.test(n) && !/[A-Z]{2,5}\s*\d{3,4}/i.test(n)) return true;
+    return false;
+  }
 
   function formatDeadline(date, hoursUntil) {
     if (hoursUntil < 1) return `Due in ${Math.round(hoursUntil * 60)} min`;

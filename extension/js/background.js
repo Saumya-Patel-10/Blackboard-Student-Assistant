@@ -7,7 +7,6 @@
 importScripts(
   'syllabus-parser.js',
   'grade-calculator.js',
-  'study-planner.js',
   'calendar-integration.js',
   'gemini-client.js'
 );
@@ -23,8 +22,6 @@ chrome.runtime.onInstalled.addListener((details) => {
         notifyAdvance: 24,
         dailySummary: true,
         autoSyncCalendar: false,
-        studyHoursPerDay: 4,
-        studyDays: ['mon', 'tue', 'wed', 'thu', 'fri'],
         geminiApiKey: '',
         geminiModel: '',
       },
@@ -32,8 +29,6 @@ chrome.runtime.onInstalled.addListener((details) => {
       assignments: [],
       grades: [],
       syllabusData: {},
-      courseGoals: {},
-      studyPlanProgress: {},
     });
   }
 
@@ -198,8 +193,12 @@ async function maybeAutoSyncCalendar() {
   const seen = new Set();
   for (const a of deadlines) {
     const course = courses.find((c) => c.id === a.courseId);
+    const displayTitle =
+      (a.calendarTitle || '').trim() ||
+      ((a.title && !/^due\s*date:/i.test(a.title)) ? a.title : '') ||
+      (course?.name ? `${course.name} — Assignment` : 'Assignment');
     const ev = {
-      title: `📝 ${a.title}`,
+      title: `📝 ${displayTitle}`,
       course: course?.name || '',
       type: a.type,
       startDate: dueIsoForAssignment(a),
@@ -294,22 +293,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.action === 'calculateNeeded') {
     const result = GradeCalculator.calculateNeeded(msg.categories, msg.targetGrade);
-    sendResponse(result);
-    return true;
-  }
-
-  if (msg.action === 'calculateNeededOnCategory') {
-    const result = GradeCalculator.calculateNeededOnCategory(
-      msg.categories,
-      msg.targetGrade,
-      msg.categoryCode
-    );
-    sendResponse(result);
-    return true;
-  }
-
-  if (msg.action === 'generatePlan') {
-    const result = StudyPlanner.generatePlan(msg.config);
     sendResponse(result);
     return true;
   }
